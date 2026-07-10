@@ -1,0 +1,763 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+<title>V-Taper Coach</title>
+<meta name="theme-color" content="#0C0E12" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<link rel="manifest" href="manifest.webmanifest" />
+<link rel="icon" href="icon-192.png" />
+<link rel="apple-touch-icon" href="icon-192.png" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=IBM+Plex+Mono:wght@400;600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+<style>
+  html, body { margin: 0; padding: 0; background: #0C0E12; overscroll-behavior-y: contain; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  input { font-family: 'IBM Plex Mono', monospace; }
+  input:focus { outline: 2px solid #F0A028; outline-offset: -1px; }
+  button { font-family: inherit; cursor: pointer; }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+  .setrow input::placeholder { color: #5A6375; }
+  .anton { font-family: 'Anton', 'Arial Narrow', sans-serif; letter-spacing: 0.5px; }
+  .mono { font-family: 'IBM Plex Mono', monospace; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel" data-presets="react">
+const { useState, useEffect, useRef, useMemo } = React;
+
+/* localStorage adapter */
+const storage = {
+  get: async (k) => { const v = localStorage.getItem(k); return v !== null ? { value: v } : null; },
+  set: async (k, v) => localStorage.setItem(k, v),
+};
+
+/* ============ V-TAPER COACH 2.0 — 4-Expert Consensus Program v2.0 ============ */
+
+const C = {
+  bg: "#0C0E12", surface: "#13161C", card: "#171B22", border: "#242B37",
+  text: "#EDEFF3", dim: "#8A93A6", faint: "#5A6375",
+  amber: "#F0A028", ice: "#6FB7FF", hot: "#FF4D5E", green: "#4ED9A0",
+};
+
+const DAY_NAMES = ["", "MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"];
+
+const PROGRAM = {
+  1: {
+    title: "PUSH", sub: "Shoulders First", sets: 19, mins: "50\u201355", color: C.amber,
+    ex: [
+      { name: "Seated DB Overhead Press", s: 4, reps: "8\u201310", score: 9, tempo: "2s up \u00b7 2s down", yt: "qEwKCR5JCog", cue: "Push the ceiling away. First exercise gets the best neural drive." },
+      { name: "Cable Lateral Raise (Behind Back)", s: 4, reps: "12\u201315", score: 10, tempo: "1s up \u00b7 3s DOWN", ecc: true, lat: true, yt: "6TQGV_RqsEI", cue: "Constant tension at the bottom. The 3-sec negative is where growth happens. ~45s TUT per set." },
+      { name: "Incline DB Press", s: 4, reps: "8\u201310", score: 8, tempo: "2s up \u00b7 2s down", yt: "8iPEnn-ltC8", cue: "Bench at 30\u201335\u00b0. Upper-chest shelf only \u2014 no flat pressing in this program." },
+      { name: "Cable Flye (Low-to-High)", s: 3, reps: "12\u201315", score: 6, tempo: "squeeze 1s at top", cue: "Upper chest from a second angle. Cable = tension through the whole arc." },
+      { name: "Overhead Tricep Extension (Cable)", s: 4, reps: "10\u201312", score: 8, tempo: "2s down \u00b7 2s up", cue: "Long head \u2014 the biggest, most visible tricep head. Full stretch overhead." },
+    ],
+  },
+  2: {
+    title: "PULL", sub: "Back Width + Rear Delts", sets: 20, mins: "55\u201360", color: C.ice,
+    ex: [
+      { name: "Weighted Pull-Ups", s: 4, reps: "6\u20138", score: 10, tempo: "controlled", cue: "Unanimous 10/10 across all four experts. Best lat-width exercise in existence. Add weight once you hit 8 clean reps." },
+      { name: "Chest-Supported T-Bar Row", s: 3, reps: "10\u201312", score: 8, tempo: "controlled", cue: "Chest on the pad \u2014 zero lower-back fatigue on a deficit." },
+      { name: "Wide-Grip Lat Pulldown", s: 3, reps: "12\u201315", score: 8, tempo: "controlled", cue: "Metabolic lat stimulus after the heavy pull-ups. Wide grip = width emphasis." },
+      { name: "Face Pulls", s: 4, reps: "15\u201320", score: 9, tempo: "2s squeeze", cue: "Elbows high at shoulder level. The 2-sec squeeze is non-negotiable. Rear delts + posture." },
+      { name: "Reverse Pec Deck", s: 3, reps: "12\u201315", score: 7, tempo: "2s out \u00b7 1s hold", cue: "Machine = no momentum. Extra rear-delt volume for 3D shoulders." },
+      { name: "Barbell Curl", s: 3, reps: "8\u201310", score: 6, tempo: "2s up \u00b7 2s down", yt: "kwG2ipFRgFo", cue: "One heavy bicep movement here \u2014 more volume Saturday. Strict, no swing." },
+    ],
+  },
+  3: {
+    title: "LEGS + CORE", sub: "Maintenance + Waist Tightening", sets: 17, mins: "50\u201355", color: C.green,
+    ex: [
+      { name: "Leg Press or Hack Squat", s: 4, reps: "10\u201315", score: 8, tempo: "2s down \u00b7 2s up", yt: "IZxyjW7MPJQ", cue: "Won over squats \u2014 CNS-sparing on a deficit. Press through midfoot, don't lock knees." },
+      { name: "Romanian Deadlift", s: 3, reps: "10\u201312", score: 7, tempo: "3s down \u00b7 2s up", yt: "JCXUYuzwNrM", cue: "Hinge, bar close to legs, flat back. The 3-sec negative builds the hamstrings." },
+      { name: "Walking Lunges", s: 3, reps: "12/leg", score: 6, tempo: "steady pace", yt: "L8fvypPrzzs", cue: "Best single exercise for glute activation. Bonus calorie burn." },
+      { name: "Hanging Leg Raises", s: 4, reps: "12\u201315", score: 9, tempo: "2s up \u00b7 2s down", yt: "Pr1ieGZ5atk", cue: "Tilt the pelvis FIRST, then curl it up. No swinging \u2014 straps if needed." },
+      { name: "Vacuum Practice", s: 3, reps: "30s hold", score: 10, tempo: "exhale \u00b7 draw in \u00b7 hold", yt: "RrSm1skOC7s", cue: "Cinches the waist 1\u20132cm independent of fat loss. On top of the daily 6 sets." },
+    ],
+  },
+  4: { title: "REST", sub: "Walk + Sauna", rest: true, color: C.faint, ex: [],
+    note: "Full rest from resistance training. Evening walk 40\u201345 min, sauna 15\u201320 min. Recovery before the priority day." },
+  5: {
+    title: "SHOULDER CAP + BACK", sub: "\u2b50 The Priority Day", sets: 22, mins: "55\u201360", color: C.amber, priority: true,
+    ex: [
+      { name: "Standing DB Lateral Raise (Lean-Away)", s: 5, reps: "12\u201315", score: 10, tempo: "1s up \u00b7 3s DOWN", ecc: true, lat: true, yt: "v_ZkxWzYnMc", cue: "Lean-away = maximum stretch at the bottom. Five sets. Caps are built here." },
+      { name: "Dumbbell Pullover", s: 4, reps: "10\u201312", score: 8, tempo: "3s stretch \u00b7 2s pull", yt: "FK4rHfWKEac", cue: "v2.0 pick: expands the ribcage at 190cm. Hips low, reach deep, pull with lats." },
+      { name: "Cable Lateral Raise (Behind Back)", s: 4, reps: "15\u201320", score: 10, tempo: "1s up \u00b7 3s DOWN", ecc: true, lat: true, yt: "6TQGV_RqsEI", cue: "Higher reps than Monday \u2014 metabolic stress. The burn IS the stimulus." },
+      { name: "Machine Shoulder Press", s: 3, reps: "10\u201312", score: 7, tempo: "2s up \u00b7 2s down", yt: "Wqq43dKoG2Q", cue: "Machine = safe to true failure. Last set: empty the tank." },
+      { name: "Reverse Pec Deck", s: 3, reps: "15\u201320", score: 7, tempo: "2s squeeze", yt: "5YK4bgzXDp0", cue: "10+ weekly rear-delt sets. Wide from every angle." },
+      { name: "Straight-Arm Pulldown", s: 3, reps: "12\u201315", score: 7, tempo: "2s down \u00b7 2s up", yt: "lueEJGjTuPQ", cue: "Pure lat isolation. Width finisher \u2014 squeeze at the bottom." },
+    ],
+  },
+  6: {
+    title: "ARMS + DELT BLAST", sub: "Fullness + Metabolic Finisher", sets: 18, mins: "45\u201350", color: C.hot,
+    ex: [
+      { name: "Cable Lateral Raise (Triple Drop)", s: 3, reps: "12\u219210\u21928", score: 10, tempo: "1s up \u00b7 3s DOWN", ecc: true, lat: true, drop: true, yt: "6TQGV_RqsEI", cue: "Third lateral session of the week. No rest between drops, 90s between rounds. Beyond failure." },
+      { name: "EZ-Bar Curl", s: 3, reps: "8\u201310", score: 7, tempo: "2s up \u00b7 2s down", cue: "Heavy bicep work, joint-friendly grip. Elbows pinned." },
+      { name: "Close-Grip Bench Press", s: 3, reps: "8\u201310", score: 7, tempo: "2s down \u00b7 2s up", yt: "nEF0bv2FW94", cue: "Two-thirds of the arm is triceps. Heaviest tricep compound." },
+      { name: "Incline DB Curl", s: 3, reps: "10\u201312", score: 8, tempo: "2s up \u00b7 3s down", cue: "Long-head stretch at the bottom \u2014 the peak builder." },
+      { name: "Overhead Tricep Extension", s: 3, reps: "10\u201312", score: 8, tempo: "2s down \u00b7 2s up", cue: "Long head under full stretch. Slow and deep." },
+      { name: "Hammer Curls", s: 3, reps: "10\u201312", score: 7, tempo: "2s up \u00b7 2s down", cue: "Brachialis \u2014 pushes the arm wider from the front." },
+    ],
+  },
+  7: { title: "REST", sub: "Walk + Sauna", rest: true, color: C.faint, ex: [],
+    note: "Full recovery. Evening walk 40\u201345 min, sauna 15\u201320 min. Big week done." },
+};
+
+const HABITS = [
+  { id: "incline", label: "30-min incline walk post-training", detail: "10\u201312% \u00b7 4.5\u20135 km/h \u00b7 HR 120\u2013130" },
+  { id: "vacuums", label: "Vacuums \u2014 6 sets daily", detail: "20\u201330s holds. Free waist reduction." },
+  { id: "evewalk", label: "Evening walk 40\u201345 min", detail: "Easy pace, Zone 2 (~100\u2013110 bpm)" },
+  { id: "sauna", label: "Sauna 15\u201320 min", detail: "Recovery + GH support" },
+];
+
+const GOAL = { kg: 83, waist: 88, startKg: 87.5, startWaist: 93 };
+
+const todayKey = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+};
+const jsDayToProgram = (d) => (d === 0 ? 7 : d);
+
+function readiness(g) {
+  if (!g) return null;
+  let pts = 0, n = 0;
+  if (g.sleep_score != null) { n++; pts += g.sleep_score >= 75 ? 1 : g.sleep_score >= 60 ? 0.5 : 0; }
+  if (g.body_battery != null) { n++; pts += g.body_battery >= 70 ? 1 : g.body_battery >= 50 ? 0.5 : 0; }
+  if (g.hrv != null && g.hrv_baseline != null) { n++; pts += g.hrv >= g.hrv_baseline ? 1 : g.hrv >= g.hrv_baseline * 0.9 ? 0.5 : 0; }
+  if (g.sleep_hours != null) { n++; pts += g.sleep_hours >= 7 ? 1 : g.sleep_hours >= 6 ? 0.5 : 0; }
+  if (!n) return null;
+  const r = pts / n;
+  if (r >= 0.75) return { level: "GREEN", color: C.green, msg: "Full session as programmed. Attack the priority work." };
+  if (r >= 0.45) return { level: "AMBER", color: C.amber, msg: "Train, but drop a set from non-priority exercises. Keep ALL lateral raise volume." };
+  return { level: "RED", color: C.hot, msg: "Recovery compromised. Walk + sauna only, or a light laterals-only session. The data doesn't lie." };
+}
+
+function VTaperCoach() {
+  const [tab, setTab] = useState("today");
+  const [state, setState] = useState(null);
+  const [selDay, setSelDay] = useState(jsDayToProgram(new Date().getDay()));
+  const [openEx, setOpenEx] = useState(null);
+  const [timer, setTimer] = useState(null);
+  const [toast, setToast] = useState(null);
+  const [garmin, setGarmin] = useState(null);
+  const saveT = useRef(null);
+  const timerRef = useRef(null);
+
+  /* fetch this morning's Garmin snapshot (written by the GitHub Action) */
+  useEffect(() => {
+    fetch("garmin.json", { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((g) => g && setGarmin(g))
+      .catch(() => {});
+  }, []);
+
+  /* auto-log Garmin scale weight into the body log once per day */
+  useEffect(() => {
+    if (!state || !garmin) return;
+    const tkNow = todayKey();
+    if (garmin.date !== tkNow || garmin.weight_kg == null) return;
+    const existing = state.body.find((b) => b.d === tkNow);
+    if (existing && existing.kg != null) return;
+    const body = state.body.filter((b) => b.d !== tkNow);
+    body.push({ d: tkNow, kg: garmin.weight_kg, waist: existing ? existing.waist : null });
+    body.sort((a, b) => (a.d < b.d ? -1 : 1));
+    persist({ ...state, body });
+  }, [state, garmin]);
+
+  useEffect(() => {
+    (async () => {
+      let data = { startDate: null, restSec: 90, logs: {}, habits: {}, body: [] };
+      try {
+        const res = await storage.get("vtaper-v2");
+        if (res && res.value) data = { ...data, ...JSON.parse(res.value) };
+      } catch (e) {}
+      if (!data.startDate) {
+        const d = new Date();
+        const diff = (d.getDay() + 6) % 7;
+        d.setDate(d.getDate() - diff);
+        data.startDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+      }
+      setState(data);
+    })();
+  }, []);
+
+  const persist = (next) => {
+    setState(next);
+    if (saveT.current) clearTimeout(saveT.current);
+    saveT.current = setTimeout(async () => {
+      try { await storage.set("vtaper-v2", JSON.stringify(next)); }
+      catch (e) { console.error("save failed", e); }
+    }, 400);
+  };
+
+  useEffect(() => {
+    if (timer === null) return;
+    if (timer <= 0) {
+      setToast("Rest done \u2014 next set");
+      setTimeout(() => setToast(null), 2500);
+      setTimer(null);
+      if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+      return;
+    }
+    timerRef.current = setTimeout(() => setTimer((t) => t - 1), 1000);
+    return () => clearTimeout(timerRef.current);
+  }, [timer]);
+
+  const week = useMemo(() => {
+    if (!state) return 1;
+    const start = new Date(state.startDate + "T00:00:00");
+    const now = new Date();
+    const w = Math.floor((now - start) / (7 * 864e5)) + 1;
+    return Math.min(Math.max(w, 1), 8);
+  }, [state]);
+
+  if (!state) {
+    return (
+      <div style={{ minHeight: "100vh", background: C.bg, display: "flex", alignItems: "center", justifyContent: "center", color: C.dim, fontFamily: "system-ui" }}>
+        Loading your program\u2026
+      </div>
+    );
+  }
+
+  const phase = week <= 4 ? "FOUNDATION" : "INTENSIFICATION";
+  const tk = todayKey();
+  const todayNum = jsDayToProgram(new Date().getDay());
+  const effSets = (ex) => ex.s + (week >= 5 && ex.lat ? 1 : 0);
+
+  const setField = (exIdx, setIdx, field, val) => {
+    const logs = { ...state.logs };
+    const cur = logs[tk] && logs[tk].day === selDay ? { ...logs[tk], ex: { ...logs[tk].ex } } : { day: selDay, ex: {} };
+    const arr = [...(cur.ex[exIdx] || [])];
+    while (arr.length <= setIdx) arr.push({ w: "", r: "", done: false });
+    arr[setIdx] = { ...arr[setIdx], [field]: val };
+    cur.ex[exIdx] = arr;
+    logs[tk] = cur;
+    persist({ ...state, logs });
+  };
+
+  const toggleDone = (exIdx, setIdx) => {
+    const cur = state.logs[tk] && state.logs[tk].day === selDay ? state.logs[tk] : { day: selDay, ex: {} };
+    const arr = cur.ex[exIdx] || [];
+    const wasDone = arr[setIdx] && arr[setIdx].done;
+    setField(exIdx, setIdx, "done", !wasDone);
+    if (!wasDone) setTimer(state.restSec);
+  };
+
+  const prevKeys = Object.keys(state.logs)
+    .filter((k) => k < tk && state.logs[k].day === selDay)
+    .sort()
+    .reverse();
+  const prevLog = prevKeys.length ? state.logs[prevKeys[0]] : null;
+
+  const dayDone = (dateKey) => {
+    const log = state.logs[dateKey];
+    if (!log) return 0;
+    let n = 0;
+    Object.values(log.ex).forEach((arr) => arr.forEach((s) => s.done && n++));
+    return n;
+  };
+
+  const toggleHabit = (id) => {
+    const habits = { ...state.habits, [tk]: { ...(state.habits[tk] || {}), [id]: !(state.habits[tk] && state.habits[tk][id]) } };
+    persist({ ...state, habits });
+  };
+
+  const addBody = (kg, waist) => {
+    if (!kg && !waist) return;
+    const body = state.body.filter((b) => b.d !== tk);
+    body.push({ d: tk, kg: kg ? parseFloat(kg) : null, waist: waist ? parseFloat(waist) : null });
+    body.sort((a, b) => (a.d < b.d ? -1 : 1));
+    persist({ ...state, body });
+    setToast("Logged"); setTimeout(() => setToast(null), 1800);
+  };
+
+  const lastBody = state.body.length ? state.body[state.body.length - 1] : null;
+  const day = PROGRAM[selDay];
+  const todayProg = PROGRAM[todayNum];
+
+  return (
+    <div style={{ minHeight: "100vh", background: C.bg, color: C.text, fontFamily: "'Inter', system-ui, sans-serif", paddingBottom: 130 }}>
+
+      <header style={{ padding: "18px 18px 12px", borderBottom: `1px solid ${C.border}`, background: C.bg, position: "sticky", top: 0, zIndex: 20 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
+          <div>
+            <div className="anton" style={{ fontSize: 26, lineHeight: 1 }}>
+              V-TAPER <span style={{ color: C.amber }}>COACH</span>
+            </div>
+            <div className="mono" style={{ fontSize: 11, color: C.dim, marginTop: 4 }}>
+              WEEK {week}/8 \u00b7 {phase}
+            </div>
+          </div>
+          <div style={{ textAlign: "right" }}>
+            <div className="mono" style={{ fontSize: 11, color: C.dim }}>TARGET</div>
+            <div className="mono" style={{ fontSize: 13, fontWeight: 600 }}>
+              {GOAL.kg}<span style={{ color: C.faint }}>kg</span> \u00b7 {GOAL.waist}<span style={{ color: C.faint }}>cm</span>
+            </div>
+          </div>
+        </div>
+        <div style={{ display: "flex", gap: 3, marginTop: 10 }}>
+          {[...Array(8)].map((_, i) => (
+            <div key={i} style={{ flex: 1, height: 4, borderRadius: 2, background: i < week ? (i >= 4 ? C.hot : C.amber) : C.border }} />
+          ))}
+        </div>
+      </header>
+
+      {tab === "today" && (
+        <div style={{ padding: 18 }}>
+          <GarminCard garmin={garmin} tk={tk} />
+          <div
+            onClick={() => { setSelDay(todayNum); setTab("train"); }}
+            style={{
+              background: `linear-gradient(140deg, ${C.card} 55%, ${todayProg.color}18)`,
+              border: `1px solid ${todayProg.priority ? C.amber : C.border}`,
+              borderRadius: 16, padding: 20, cursor: "pointer",
+            }}
+          >
+            <div className="mono" style={{ fontSize: 11, color: C.dim }}>
+              TODAY \u00b7 {DAY_NAMES[todayNum]}{todayProg.priority ? " \u00b7 \u2b50 PRIORITY DAY" : ""}
+            </div>
+            <div className="anton" style={{ fontSize: 34, marginTop: 6, color: todayProg.rest ? C.dim : C.text, lineHeight: 1.05 }}>
+              {todayProg.title}
+            </div>
+            <div style={{ fontSize: 14, color: C.dim, marginTop: 4 }}>{todayProg.sub}</div>
+            {!todayProg.rest && (
+              <div style={{ display: "flex", gap: 14, marginTop: 14 }}>
+                <Stat label="SETS" value={todayProg.ex.reduce((a, e) => a + effSets(e), 0)} />
+                <Stat label="MIN" value={todayProg.mins} />
+                <Stat label="DONE" value={dayDone(tk)} color={dayDone(tk) > 0 ? C.green : undefined} />
+                <div style={{ marginLeft: "auto", alignSelf: "center", background: C.amber, color: "#111", fontWeight: 700, fontSize: 13, padding: "10px 16px", borderRadius: 10 }}>
+                  TRAIN \u2192
+                </div>
+              </div>
+            )}
+            {todayProg.rest && <div style={{ marginTop: 12, fontSize: 13, color: C.dim, lineHeight: 1.5 }}>{todayProg.note}</div>}
+          </div>
+
+          {week >= 5 && !todayProg.rest && (
+            <div style={{ marginTop: 12, background: `${C.hot}14`, border: `1px solid ${C.hot}44`, borderRadius: 12, padding: "10px 14px", fontSize: 12.5, color: C.text }}>
+              <b style={{ color: C.hot }}>INTENSIFICATION:</b> RPE 9 \u00b7 +1 set on all lateral raises (added below) \u00b7 rest-pause on final lateral sets.
+            </div>
+          )}
+
+          <SectionTitle>NON-NEGOTIABLES</SectionTitle>
+          {HABITS.map((h) => {
+            const on = !!(state.habits[tk] && state.habits[tk][h.id]);
+            return (
+              <button key={h.id} onClick={() => toggleHabit(h.id)}
+                style={{
+                  display: "flex", alignItems: "center", gap: 12, width: "100%", textAlign: "left",
+                  background: C.card, border: `1px solid ${on ? C.green + "66" : C.border}`,
+                  borderRadius: 12, padding: "13px 14px", marginBottom: 8, color: C.text,
+                }}>
+                <div style={{
+                  width: 26, height: 26, borderRadius: 8, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center",
+                  background: on ? C.green : "transparent", border: `2px solid ${on ? C.green : C.faint}`,
+                  color: "#0C0E12", fontWeight: 800, fontSize: 15,
+                }}>{on ? "\u2713" : ""}</div>
+                <div>
+                  <div style={{ fontSize: 14, fontWeight: 600, textDecoration: on ? "line-through" : "none", opacity: on ? 0.6 : 1 }}>{h.label}</div>
+                  <div style={{ fontSize: 11.5, color: C.faint }}>{h.detail}</div>
+                </div>
+              </button>
+            );
+          })}
+
+          <SectionTitle>MORNING CHECK-IN</SectionTitle>
+          <BodyLogger onSave={addBody} last={lastBody} today={state.body.find((b) => b.d === tk)} />
+        </div>
+      )}
+
+      {tab === "train" && (
+        <div style={{ padding: "14px 14px 0" }}>
+          <div style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 12 }}>
+            {[1, 2, 3, 4, 5, 6, 7].map((d) => {
+              const p = PROGRAM[d];
+              const active = d === selDay;
+              return (
+                <button key={d} onClick={() => { setSelDay(d); setOpenEx(null); }}
+                  style={{
+                    flexShrink: 0, minWidth: 52, padding: "8px 6px", borderRadius: 10,
+                    background: active ? (p.priority ? C.amber : C.text) : C.card,
+                    color: active ? "#0C0E12" : d === todayNum ? C.amber : C.dim,
+                    border: `1px solid ${active ? "transparent" : C.border}`,
+                    fontWeight: 700, fontSize: 12,
+                  }}>
+                  {DAY_NAMES[d]}{p.priority ? " \u2b50" : ""}
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="anton" style={{ fontSize: 28, lineHeight: 1.05 }}>{day.title}</div>
+          <div style={{ fontSize: 13, color: C.dim, marginBottom: 4 }}>{day.sub}</div>
+          {!day.rest && (
+            <div className="mono" style={{ fontSize: 11, color: C.faint, marginBottom: 14 }}>
+              {day.ex.reduce((a, e) => a + effSets(e), 0)} SETS \u00b7 {day.mins} MIN{prevLog ? " \u00b7 LAST SESSION SHOWN IN GREY" : ""}
+            </div>
+          )}
+
+          {day.rest && (
+            <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: 18, fontSize: 14, color: C.dim, lineHeight: 1.6, marginTop: 8 }}>
+              {day.note}
+            </div>
+          )}
+
+          {day.ex.map((ex, i) => {
+            const nSets = effSets(ex);
+            const cur = (state.logs[tk] && state.logs[tk].day === selDay ? state.logs[tk].ex[i] : null) || [];
+            const prev = (prevLog && prevLog.ex && prevLog.ex[i]) || [];
+            const doneCount = cur.filter((s) => s && s.done).length;
+            const open = openEx === i;
+            return (
+              <div key={i} style={{ background: C.card, border: `1px solid ${doneCount >= nSets && nSets > 0 ? C.green + "55" : C.border}`, borderRadius: 14, marginBottom: 10, overflow: "hidden" }}>
+                <button onClick={() => setOpenEx(open ? null : i)}
+                  style={{ width: "100%", textAlign: "left", background: "transparent", border: "none", color: C.text, padding: "14px 14px 12px" }}>
+                  <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
+                    <div className="mono" style={{
+                      flexShrink: 0, width: 34, height: 34, borderRadius: 9, display: "flex", alignItems: "center", justifyContent: "center",
+                      background: ex.score === 10 ? C.amber : C.surface, color: ex.score === 10 ? "#111" : C.dim,
+                      fontWeight: 800, fontSize: 13, border: `1px solid ${ex.score === 10 ? C.amber : C.border}`,
+                    }}>{ex.score}</div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 15, fontWeight: 700, lineHeight: 1.25 }}>
+                        {ex.name} {ex.ecc && <span style={{ color: C.hot, fontSize: 11 }}>\u26a0 3s ECC</span>}
+                      </div>
+                      <div className="mono" style={{ fontSize: 11.5, color: C.dim, marginTop: 3 }}>
+                        {nSets} \u00d7 {ex.reps}{week >= 5 && ex.lat ? " (+1 set)" : ""} \u00b7 {ex.tempo}
+                      </div>
+                    </div>
+                    <div className="mono" style={{ fontSize: 12, color: doneCount >= nSets && nSets > 0 ? C.green : C.faint, fontWeight: 600, alignSelf: "center" }}>
+                      {doneCount}/{nSets}
+                    </div>
+                  </div>
+                </button>
+
+                <div style={{ padding: "0 14px 12px" }}>
+                  {[...Array(nSets)].map((_, si) => {
+                    const s = cur[si] || {};
+                    const p = prev[si] || {};
+                    return (
+                      <div key={si} className="setrow" style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 6 }}>
+                        <div className="mono" style={{ width: 20, fontSize: 11, color: C.faint }}>{si + 1}</div>
+                        <input inputMode="decimal" placeholder={p.w ? `${p.w}` : "kg"} value={s.w || ""}
+                          onChange={(e) => setField(i, si, "w", e.target.value)}
+                          style={inp(s.done)} />
+                        <span style={{ color: C.faint, fontSize: 12 }}>\u00d7</span>
+                        <input inputMode="numeric" placeholder={p.r ? `${p.r}` : "reps"} value={s.r || ""}
+                          onChange={(e) => setField(i, si, "r", e.target.value)}
+                          style={inp(s.done)} />
+                        <button onClick={() => toggleDone(i, si)}
+                          style={{
+                            width: 46, height: 42, borderRadius: 10, flexShrink: 0,
+                            background: s.done ? C.green : C.surface,
+                            border: `1.5px solid ${s.done ? C.green : C.border}`,
+                            color: s.done ? "#0C0E12" : C.faint, fontWeight: 800, fontSize: 17,
+                          }}>\u2713</button>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {open && (
+                  <div style={{ borderTop: `1px solid ${C.border}`, padding: "12px 14px", background: C.surface }}>
+                    <div style={{ fontSize: 13, color: C.dim, lineHeight: 1.55 }}>{ex.cue}</div>
+                    {ex.drop && <div style={{ marginTop: 8, fontSize: 12, color: C.hot }}>Triple drop: 12 reps \u2192 drop weight \u2192 10 \u2192 drop \u2192 8. No rest between drops.</div>}
+                    {ex.yt && (
+                      <a href={`https://www.youtube.com/watch?v=${ex.yt}`} target="_blank" rel="noreferrer"
+                        style={{ display: "inline-block", marginTop: 10, color: C.ice, fontSize: 13, fontWeight: 600, textDecoration: "none" }}>
+                        \u25b6 Watch form video
+                      </a>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {tab === "progress" && (
+        <div style={{ padding: 18 }}>
+          <div style={{ display: "flex", gap: 10 }}>
+            <BigStat label="WEIGHT" value={(lastBody && lastBody.kg) || GOAL.startKg} unit="kg" goal={GOAL.kg} start={GOAL.startKg} />
+            <BigStat label="WAIST" value={(lastBody && lastBody.waist) || GOAL.startWaist} unit="cm" goal={GOAL.waist} start={GOAL.startWaist} />
+          </div>
+
+          <SectionTitle>WEIGHT \u2014 TARGET {GOAL.kg}KG</SectionTitle>
+          <Chart data={state.body.filter((b) => b.kg).map((b) => b.kg)} goal={GOAL.kg} color={C.amber} />
+
+          <SectionTitle>WAIST \u2014 TARGET {GOAL.waist}CM</SectionTitle>
+          <Chart data={state.body.filter((b) => b.waist).map((b) => b.waist)} goal={GOAL.waist} color={C.ice} />
+
+          <SectionTitle>LOG ENTRY</SectionTitle>
+          <BodyLogger onSave={addBody} last={lastBody} today={state.body.find((b) => b.d === tk)} />
+
+          <SectionTitle>SESSION HISTORY</SectionTitle>
+          {Object.keys(state.logs).sort().reverse().slice(0, 14).map((k) => {
+            const l = state.logs[k];
+            const p = PROGRAM[l.day];
+            const n = dayDone(k);
+            if (!n) return null;
+            return (
+              <div key={k} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: "12px 14px", marginBottom: 8 }}>
+                <div>
+                  <div style={{ fontSize: 14, fontWeight: 700 }}>{p.title}</div>
+                  <div className="mono" style={{ fontSize: 11, color: C.faint }}>{k}</div>
+                </div>
+                <div className="mono" style={{ fontSize: 13, color: C.green, fontWeight: 600 }}>{n} sets</div>
+              </div>
+            );
+          })}
+          {Object.keys(state.logs).length === 0 && (
+            <div style={{ color: C.faint, fontSize: 13, padding: "8px 2px" }}>No sessions logged yet. Hit TRAIN and check off your first set.</div>
+          )}
+        </div>
+      )}
+
+      {tab === "plan" && (
+        <div style={{ padding: 18 }}>
+          <SectionTitle>THE SPLIT \u2014 4-EXPERT CONSENSUS v2.0</SectionTitle>
+          {[1, 2, 3, 4, 5, 6, 7].map((d) => {
+            const p = PROGRAM[d];
+            return (
+              <button key={d} onClick={() => { setSelDay(d); setTab("train"); }}
+                style={{
+                  display: "flex", alignItems: "center", gap: 12, width: "100%", textAlign: "left",
+                  background: d === todayNum ? `linear-gradient(90deg, ${C.card}, ${p.color}12)` : C.card,
+                  border: `1px solid ${p.priority ? C.amber + "77" : C.border}`,
+                  borderRadius: 12, padding: "13px 14px", marginBottom: 8, color: C.text,
+                }}>
+                <div className="mono" style={{ width: 36, fontSize: 12, fontWeight: 700, color: d === todayNum ? C.amber : C.faint }}>{DAY_NAMES[d]}</div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 14, fontWeight: 700 }}>{p.title}{p.priority ? " \u2b50" : ""}</div>
+                  <div style={{ fontSize: 11.5, color: C.faint }}>{p.sub}</div>
+                </div>
+                {!p.rest && <div className="mono" style={{ fontSize: 11, color: C.dim }}>{p.ex.reduce((a, e) => a + effSets(e), 0)} sets</div>}
+              </button>
+            );
+          })}
+
+          <SectionTitle>PHASES</SectionTitle>
+          <Rule t="Weeks 1\u20134 \u00b7 Foundation" d="RPE 7\u20138, keep 2\u20133 reps in reserve. Build the groove, own the tempos." />
+          <Rule t="Weeks 5\u20138 \u00b7 Intensification" d="RPE 9. +1 set on every lateral raise variation. Rest-pause on final lateral sets." hot />
+
+          <SectionTitle>RULES</SectionTitle>
+          <Rule t="3-sec eccentric on ALL lateral raises" d="~45s time-under-tension per set. This is where the caps grow." />
+          <Rule t="Fasted AM training" d="Black coffee + creatine + salt pre-workout. GH first thing." />
+          <Rule t="No flat pressing, no heavy obliques, zero calves" d="Upper chest shelf only. Nothing that thickens the waist. Calves eliminated by consensus." />
+          <Rule t="Macros" d="2000\u20132100 kcal \u00b7 200g protein \u00b7 150\u2013180g carbs \u00b7 55\u201365g fat." />
+          <Rule t="Sleep 7h+" d="Garmin-tracked. Magnesium glycinate before bed." />
+
+          <SectionTitle>SETTINGS</SectionTitle>
+          <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: 14 }}>
+            <label style={{ fontSize: 12, color: C.dim, display: "block", marginBottom: 6 }}>Program start date (Week 1 Monday)</label>
+            <input type="date" value={state.startDate}
+              onChange={(e) => persist({ ...state, startDate: e.target.value })}
+              style={{ ...inp(false), width: "100%", colorScheme: "dark" }} />
+            <label style={{ fontSize: 12, color: C.dim, display: "block", margin: "14px 0 6px" }}>Rest timer (seconds)</label>
+            <div style={{ display: "flex", gap: 8 }}>
+              {[60, 90, 120, 150].map((s) => (
+                <button key={s} onClick={() => persist({ ...state, restSec: s })} className="mono"
+                  style={{
+                    flex: 1, padding: "10px 0", borderRadius: 10, fontWeight: 700, fontSize: 13,
+                    background: state.restSec === s ? C.amber : C.surface,
+                    color: state.restSec === s ? "#111" : C.dim,
+                    border: `1px solid ${state.restSec === s ? C.amber : C.border}`,
+                  }}>{s}s</button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {timer !== null && (
+        <div style={{
+          position: "fixed", left: 12, right: 12, bottom: 86, zIndex: 40,
+          background: C.amber, color: "#0C0E12", borderRadius: 14, padding: "12px 16px",
+          display: "flex", alignItems: "center", gap: 14, boxShadow: "0 8px 28px rgba(0,0,0,0.5)",
+        }}>
+          <div className="anton" style={{ fontSize: 30, minWidth: 76 }}>
+            {Math.floor(timer / 60)}:{String(timer % 60).padStart(2, "0")}
+          </div>
+          <div style={{ fontSize: 12.5, fontWeight: 700, flex: 1 }}>REST</div>
+          <button onClick={() => setTimer((t) => t + 30)} style={{ background: "rgba(0,0,0,0.15)", border: "none", borderRadius: 9, padding: "9px 13px", fontWeight: 800, fontSize: 13 }}>+30s</button>
+          <button onClick={() => setTimer(null)} style={{ background: "rgba(0,0,0,0.15)", border: "none", borderRadius: 9, padding: "9px 13px", fontWeight: 800, fontSize: 13 }}>SKIP</button>
+        </div>
+      )}
+
+      {toast && (
+        <div style={{ position: "fixed", left: "50%", transform: "translateX(-50%)", bottom: 150, zIndex: 50, background: C.green, color: "#0C0E12", fontWeight: 700, fontSize: 13, padding: "10px 18px", borderRadius: 999 }}>
+          {toast}
+        </div>
+      )}
+
+      <nav style={{
+        position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 30,
+        background: "rgba(19,22,28,0.96)", backdropFilter: "blur(12px)",
+        borderTop: `1px solid ${C.border}`, display: "flex",
+        paddingBottom: "env(safe-area-inset-bottom, 8px)",
+      }}>
+        {[
+          ["today", "TODAY", "\u25c9"],
+          ["train", "TRAIN", "\u25b2"],
+          ["progress", "PROGRESS", "\u25e2"],
+          ["plan", "PLAN", "\u2261"],
+        ].map(([id, label, icon]) => (
+          <button key={id} onClick={() => setTab(id)}
+            style={{
+              flex: 1, padding: "12px 0 10px", background: "transparent", border: "none",
+              color: tab === id ? C.amber : C.faint,
+            }}>
+            <div style={{ fontSize: 17 }}>{icon}</div>
+            <div className="mono" style={{ fontSize: 10, fontWeight: 700, marginTop: 2 }}>{label}</div>
+          </button>
+        ))}
+      </nav>
+    </div>
+  );
+}
+
+const inp = (done) => ({
+  flex: 1, minWidth: 0, height: 42, borderRadius: 10, border: `1.5px solid ${done ? C.green + "66" : C.border}`,
+  background: C.surface, color: done ? C.green : C.text, fontSize: 16, fontWeight: 600,
+  textAlign: "center", padding: "0 6px",
+});
+
+function GarminCard({ garmin, tk }) {
+  if (!garmin) return null;
+  const stale = garmin.date !== tk;
+  const r = readiness(garmin);
+  const M = ({ l, v, u }) => v == null ? null : (
+    <div style={{ flex: 1, minWidth: 62 }}>
+      <div className="mono" style={{ fontSize: 9.5, color: C.faint }}>{l}</div>
+      <div className="mono" style={{ fontSize: 16, fontWeight: 600 }}>{v}<span style={{ fontSize: 10, color: C.faint }}>{u}</span></div>
+    </div>
+  );
+  return (
+    <div style={{ background: C.card, border: `1px solid ${r ? r.color + "55" : C.border}`, borderRadius: 16, padding: 16, marginBottom: 14 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <div className="mono" style={{ fontSize: 11, color: C.dim }}>
+          GARMIN READINESS{stale ? ` \u00b7 ${garmin.date} (stale)` : ""}
+        </div>
+        {r && (
+          <div className="mono" style={{ fontSize: 11, fontWeight: 700, color: "#0C0E12", background: r.color, padding: "4px 10px", borderRadius: 999 }}>
+            {r.level}
+          </div>
+        )}
+      </div>
+      <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
+        <M l="SLEEP" v={garmin.sleep_score} u="" />
+        <M l="HOURS" v={garmin.sleep_hours} u="h" />
+        <M l="HRV" v={garmin.hrv} u="ms" />
+        <M l="RHR" v={garmin.resting_hr} u="" />
+        <M l="BATTERY" v={garmin.body_battery} u="" />
+      </div>
+      {r && <div style={{ fontSize: 12.5, color: C.dim, marginTop: 10, lineHeight: 1.5 }}>{r.msg}</div>}
+      {garmin.weight_kg != null && !stale && (
+        <div className="mono" style={{ fontSize: 10.5, color: C.green, marginTop: 8 }}>\u2713 Scale weight {garmin.weight_kg}kg auto-logged</div>
+      )}
+    </div>
+  );
+}
+
+function Stat({ label, value, color }) {
+  return (
+    <div>
+      <div className="mono" style={{ fontSize: 10, color: C.faint }}>{label}</div>
+      <div className="mono" style={{ fontSize: 17, fontWeight: 600, color: color || C.text }}>{value}</div>
+    </div>
+  );
+}
+
+function BigStat({ label, value, unit, goal, start }) {
+  const pct = Math.max(0, Math.min(1, (start - value) / (start - goal)));
+  const toGo = (value - goal).toFixed(1);
+  return (
+    <div style={{ flex: 1, background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: 14 }}>
+      <div className="mono" style={{ fontSize: 10, color: C.faint }}>{label}</div>
+      <div className="anton" style={{ fontSize: 30, marginTop: 2 }}>
+        {value}<span style={{ fontSize: 15, color: C.dim }}>{unit}</span>
+      </div>
+      <div style={{ height: 5, background: C.border, borderRadius: 3, marginTop: 8 }}>
+        <div style={{ height: 5, width: `${pct * 100}%`, background: C.amber, borderRadius: 3 }} />
+      </div>
+      <div className="mono" style={{ fontSize: 10.5, color: C.dim, marginTop: 5 }}>{toGo > 0 ? `${toGo} to goal` : "GOAL HIT \ud83c\udfc1"}</div>
+    </div>
+  );
+}
+
+function Chart({ data, goal, color }) {
+  if (!data || data.length < 2) {
+    return <div style={{ background: C.card, border: `1px dashed ${C.border}`, borderRadius: 12, padding: "22px 14px", fontSize: 12.5, color: C.faint, textAlign: "center" }}>
+      Log at least two entries to see your trend.
+    </div>;
+  }
+  const W = 320, H = 110, pad = 8;
+  const all = [...data, goal];
+  const min = Math.min(...all) - 0.5, max = Math.max(...all) + 0.5;
+  const x = (i) => pad + (i / (data.length - 1)) * (W - pad * 2);
+  const y = (v) => pad + (1 - (v - min) / (max - min)) * (H - pad * 2);
+  const path = data.map((v, i) => `${i ? "L" : "M"}${x(i)},${y(v)}`).join(" ");
+  return (
+    <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: "10px 8px" }}>
+      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", display: "block" }}>
+        <line x1={pad} x2={W - pad} y1={y(goal)} y2={y(goal)} stroke={C.green} strokeDasharray="4 4" strokeWidth="1" />
+        <text x={W - pad} y={y(goal) - 4} textAnchor="end" fill={C.green} fontSize="9" fontFamily="monospace">GOAL {goal}</text>
+        <path d={path} fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+        {data.map((v, i) => <circle key={i} cx={x(i)} cy={y(v)} r="3" fill={color} />)}
+        <text x={x(data.length - 1)} y={y(data[data.length - 1]) - 8} textAnchor="end" fill={C.text} fontSize="10" fontWeight="700" fontFamily="monospace">{data[data.length - 1]}</text>
+      </svg>
+    </div>
+  );
+}
+
+function BodyLogger({ onSave, last, today }) {
+  const [kg, setKg] = useState("");
+  const [waist, setWaist] = useState("");
+  return (
+    <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: 14 }}>
+      <div style={{ display: "flex", gap: 8 }}>
+        <input inputMode="decimal" placeholder={today && today.kg ? `${today.kg} kg \u2713` : last && last.kg ? `${last.kg} kg` : "kg"} value={kg}
+          onChange={(e) => setKg(e.target.value)} style={inp(false)} />
+        <input inputMode="decimal" placeholder={today && today.waist ? `${today.waist} cm \u2713` : last && last.waist ? `${last.waist} cm` : "waist cm"} value={waist}
+          onChange={(e) => setWaist(e.target.value)} style={inp(false)} />
+        <button onClick={() => { onSave(kg, waist); setKg(""); setWaist(""); }}
+          style={{ flexShrink: 0, padding: "0 18px", height: 42, borderRadius: 10, background: C.amber, color: "#111", border: "none", fontWeight: 800, fontSize: 13 }}>
+          LOG
+        </button>
+      </div>
+      <div style={{ fontSize: 11, color: C.faint, marginTop: 8 }}>Weigh in fasted, same time each morning. Waist at navel, relaxed.</div>
+    </div>
+  );
+}
+
+function SectionTitle({ children }) {
+  return <div className="mono" style={{ fontSize: 11, fontWeight: 700, color: C.dim, letterSpacing: 1.5, margin: "22px 2px 10px" }}>{children}</div>;
+}
+
+function Rule({ t, d, hot }) {
+  return (
+    <div style={{ background: C.card, border: `1px solid ${hot ? C.hot + "55" : C.border}`, borderRadius: 12, padding: "12px 14px", marginBottom: 8 }}>
+      <div style={{ fontSize: 13.5, fontWeight: 700, color: hot ? C.hot : C.text }}>{t}</div>
+      <div style={{ fontSize: 12.5, color: C.dim, marginTop: 3, lineHeight: 1.5 }}>{d}</div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<VTaperCoach />);
+</script>
+<script>
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () => {
+      navigator.serviceWorker.register("sw.js").catch(() => {});
+    });
+  }
+</script>
+</body>
+</html>

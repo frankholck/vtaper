@@ -1,0 +1,40 @@
+name: Garmin morning sync
+
+on:
+  schedule:
+    # 01:45 UTC = 05:45 Dubai — before the 06:30 fasted session.
+    # Second run at 02:30 UTC (06:30 Dubai) catches late sleep/HRV processing.
+    - cron: "45 1 * * *"
+    - cron: "30 2 * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install garminconnect
+        run: pip install garminconnect
+
+      - name: Fetch Garmin data
+        env:
+          GARMIN_EMAIL: ${{ secrets.GARMIN_EMAIL }}
+          GARMIN_PASSWORD: ${{ secrets.GARMIN_PASSWORD }}
+        run: python garmin-sync/fetch_garmin.py
+
+      - name: Commit garmin.json if changed
+        run: |
+          git config user.name "garmin-sync"
+          git config user.email "actions@github.com"
+          git add garmin.json
+          git diff --cached --quiet && echo "No change" && exit 0
+          git commit -m "Garmin sync $(date -u +%F)"
+          git push

@@ -1,0 +1,11 @@
+{
+  "date": "2026-07-10",
+  "sleep_score": 82,
+  "sleep_hours": 7.4,
+  "hrv": 61,
+  "hrv_baseline": 58,
+  "resting_hr": 52,
+  "body_battery": 84,
+  "weight_kg": 86.4,
+  "_note": "SAMPLE DATA \u2014 the garmin-sync Action overwrites this file with real data"
+}
