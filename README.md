@@ -21,7 +21,7 @@ Open the URL in Chrome -> menu -> "Add to Home screen" -> Install.
 3. It writes garmin.json to the repo. The app fetches it on launch and
    shows the readiness card: sleep score, hours, HRV vs 7-day baseline,
    resting HR, body battery, plus a GREEN / AMBER / RED verdict.
-4. Schedule: 05:45 and 06:30 Dubai time daily, before the fasted session.
+4. Schedule: 08:00 Dubai local time daily (04:00 UTC).
    Scale weight is auto-logged into the app's body log.
 
 ## Private visual progress photos
