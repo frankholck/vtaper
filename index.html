@@ -17,15 +17,24 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
 <style>
-  html, body { margin: 0; padding: 0; background: #0C0E12; overscroll-behavior-y: contain; }
+  html, body { margin: 0; padding: 0; background: #07090C; overscroll-behavior-y: contain; }
+  body { font-size: 17px; }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   input { font-family: 'IBM Plex Mono', monospace; }
-  input:focus { outline: 2px solid #F0A028; outline-offset: -1px; }
-  button { font-family: inherit; cursor: pointer; }
+  input:focus, button:focus-visible, a:focus-visible { outline: 3px solid #FFC247; outline-offset: 2px; }
+  button { font-family: inherit; cursor: pointer; min-height: 48px; }
   @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
-  .setrow input::placeholder { color: #5A6375; }
+  .setrow input::placeholder { color: #AAB4C3; opacity: 1; }
   .anton { font-family: 'Anton', 'Arial Narrow', sans-serif; letter-spacing: 0.5px; }
   .mono { font-family: 'IBM Plex Mono', monospace; }
+  .app-shell { width: 100%; max-width: 520px; margin: 0 auto; min-height: 100dvh; box-shadow: 0 0 40px rgba(0,0,0,.35); }
+  .screen-pad { padding-left: max(16px, env(safe-area-inset-left)); padding-right: max(16px, env(safe-area-inset-right)); }
+  .scroll-days { scrollbar-width: none; }
+  .scroll-days::-webkit-scrollbar { display: none; }
+  @media (max-width: 390px) {
+    body { font-size: 16px; }
+    .screen-pad { padding-left: 12px; padding-right: 12px; }
+  }
 </style>
 </head>
 <body>
@@ -42,9 +51,9 @@ const storage = {
 /* ============ V-TAPER COACH 2.0 — 4-Expert Consensus Program v2.0 ============ */
 
 const C = {
-  bg: "#0C0E12", surface: "#13161C", card: "#171B22", border: "#242B37",
-  text: "#EDEFF3", dim: "#8A93A6", faint: "#5A6375",
-  amber: "#F0A028", ice: "#6FB7FF", hot: "#FF4D5E", green: "#4ED9A0",
+  bg: "#07090C", surface: "#11161D", card: "#171D26", border: "#3C4859",
+  text: "#FFFFFF", dim: "#D7DCE5", faint: "#A8B2C1",
+  amber: "#FFC247", ice: "#79C4FF", hot: "#FF6B78", green: "#63E6AE",
 };
 
 const DAY_NAMES = ["", "MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"];
@@ -89,7 +98,7 @@ const PROGRAM = {
       { name: "Standing DB Lateral Raise (Lean-Away)", s: 5, reps: "12\u201315", score: 10, tempo: "1s up \u00b7 3s DOWN", ecc: true, lat: true, yt: "v_ZkxWzYnMc", cue: "Lean-away = maximum stretch at the bottom. Five sets. Caps are built here." },
       { name: "Dumbbell Pullover", s: 4, reps: "10\u201312", score: 8, tempo: "3s stretch \u00b7 2s pull", yt: "FK4rHfWKEac", cue: "v2.0 pick: expands the ribcage at 190cm. Hips low, reach deep, pull with lats." },
       { name: "Cable Lateral Raise (Behind Back)", s: 4, reps: "15\u201320", score: 10, tempo: "1s up \u00b7 3s DOWN", ecc: true, lat: true, yt: "6TQGV_RqsEI", cue: "Higher reps than Monday \u2014 metabolic stress. The burn IS the stimulus." },
-      { name: "Machine Shoulder Press", s: 3, reps: "10\u201312", score: 7, tempo: "2s up \u00b7 2s down", yt: "Wqq43dKoG2Q", cue: "Machine = safe to true failure. Last set: empty the tank." },
+      { name: "Machine Shoulder Press", s: 3, reps: "10\u201312", score: 7, tempo: "2s up \u00b7 2s down", yt: "Wqq43dKoG2Q", cue: "Use the machine for stable, controlled reps. Stop with 1\u20132 clean reps in reserve, even on GREEN days." },
       { name: "Reverse Pec Deck", s: 3, reps: "15\u201320", score: 7, tempo: "2s squeeze", yt: "5YK4bgzXDp0", cue: "10+ weekly rear-delt sets. Wide from every angle." },
       { name: "Straight-Arm Pulldown", s: 3, reps: "12\u201315", score: 7, tempo: "2s down \u00b7 2s up", yt: "lueEJGjTuPQ", cue: "Pure lat isolation. Width finisher \u2014 squeeze at the bottom." },
     ],
@@ -97,7 +106,7 @@ const PROGRAM = {
   6: {
     title: "ARMS + DELT BLAST", sub: "Fullness + Metabolic Finisher", sets: 18, mins: "45\u201350", color: C.hot,
     ex: [
-      { name: "Cable Lateral Raise (Triple Drop)", s: 3, reps: "12\u219210\u21928", score: 10, tempo: "1s up \u00b7 3s DOWN", ecc: true, lat: true, drop: true, yt: "6TQGV_RqsEI", cue: "Third lateral session of the week. No rest between drops, 90s between rounds. Beyond failure." },
+      { name: "Cable Lateral Raise (Triple Drop)", s: 3, reps: "12\u219210\u21928", score: 10, tempo: "1s up \u00b7 3s DOWN", ecc: true, lat: true, drop: true, yt: "6TQGV_RqsEI", cue: "Only use the full drop sequence on a GREEN day. On AMBER, perform one controlled straight set and stop well before failure." },
       { name: "EZ-Bar Curl", s: 3, reps: "8\u201310", score: 7, tempo: "2s up \u00b7 2s down", cue: "Heavy bicep work, joint-friendly grip. Elbows pinned." },
       { name: "Close-Grip Bench Press", s: 3, reps: "8\u201310", score: 7, tempo: "2s down \u00b7 2s up", yt: "nEF0bv2FW94", cue: "Two-thirds of the arm is triceps. Heaviest tricep compound." },
       { name: "Incline DB Curl", s: 3, reps: "10\u201312", score: 8, tempo: "2s up \u00b7 3s down", cue: "Long-head stretch at the bottom \u2014 the peak builder." },
@@ -109,11 +118,40 @@ const PROGRAM = {
     note: "Full recovery. Evening walk 40\u201345 min, sauna 15\u201320 min. Big week done." },
 };
 
+const FORM_GUIDES = {
+  "Seated DB Overhead Press": ["Sit tall with back support, feet planted and ribs stacked over the pelvis.", "Start the dumbbells just outside shoulder width; press up and slightly inward without clanging them together.", "Lower under control until elbows are just below shoulder height. Avoid leaning back or shrugging."],
+  "Cable Lateral Raise (Behind Back)": ["Set the cable low, take the handle behind your body and step away until there is tension at the bottom.", "Lead with the elbow and raise in the shoulder blade's natural plane to about shoulder height.", "Keep the wrist quiet, shoulder down and torso still. Use the full 3-second lowering phase."],
+  "Incline DB Press": ["Set the bench to 30\u201335 degrees, plant the feet and keep shoulder blades gently back and down.", "Lower the dumbbells toward the upper chest with forearms vertical.", "Press up without bouncing, over-arching or letting the shoulders roll forward."],
+  "Cable Flye (Low-to-High)": ["Set handles low, use a split stance and keep a small fixed bend in the elbows.", "Sweep the hands up and together toward upper-chest height.", "Pause for one second, then return slowly until the chest is stretched without the shoulders tipping forward."],
+  "Overhead Tricep Extension (Cable)": ["Face away from the cable, brace the ribs down and point elbows forward.", "Let the forearms travel behind the head for a comfortable long-head stretch.", "Extend the elbows without moving the upper arms or arching the lower back."],
+  "Weighted Pull-Ups": ["Begin from a controlled dead hang with ribs down and shoulders active.", "Drive elbows toward the ribs and lift the chest toward the bar without kicking.", "Lower to full control. Use bodyweight or assistance if the target reps are not clean."],
+  "Chest-Supported T-Bar Row": ["Set the pad so the chest stays supported and feet are stable.", "Pull elbows back and slightly out while keeping the neck neutral.", "Pause at the top, then reach forward under control without lifting the chest from the pad."],
+  "Wide-Grip Lat Pulldown": ["Use a grip only moderately wider than the shoulders and sit with ribs stacked.", "Pull elbows down toward the sides, bringing the bar toward the upper chest.", "Do not swing or pull behind the neck; return to a full controlled stretch."],
+  "Face Pulls": ["Set the rope around eye level and step back into steady tension.", "Pull toward the eyebrows while separating the rope and keeping elbows high.", "Pause with shoulder blades controlled; do not arch the back or shrug."],
+  "Reverse Pec Deck": ["Adjust the seat so handles are level with the shoulders and keep the chest on the pad.", "Move the arms wide by driving from the rear shoulders, not the hands.", "Pause briefly and return without letting the weight stack slam."],
+  "Barbell Curl": ["Stand tall with a shoulder-width grip, wrists straight and elbows by the ribs.", "Curl without swinging the torso or pushing elbows forward.", "Squeeze at the top and lower for two seconds to full elbow extension."],
+  "Leg Press or Hack Squat": ["Place feet about shoulder width and brace the whole torso against the pad.", "Lower only as far as the pelvis stays neutral and knees track over the toes.", "Press through the midfoot; do not bounce at the bottom or hard-lock the knees."],
+  "Romanian Deadlift": ["Stand tall with a soft knee bend, brace the trunk and keep the weight close to the legs.", "Push the hips back until the hamstrings are strongly loaded while the spine stays neutral.", "Drive the floor away and finish tall without leaning back. Stop if the lower back takes over."],
+  "Walking Lunges": ["Take a long, stable step and keep the whole front foot planted.", "Lower straight down while the front knee tracks over the toes.", "Push through the front midfoot to stand; keep the torso controlled rather than rushing."],
+  "Hanging Leg Raises": ["Start with shoulders active and stop any swinging before the first rep.", "Exhale and tuck the pelvis first, then curl the knees or straight legs upward.", "Lower slowly without losing the pelvic tuck. Bend the knees if the lower back arches."],
+  "Vacuum Practice": ["Perform standing, kneeling or on all fours with a long neutral spine.", "Exhale comfortably, then gently draw the lower abdomen inward without straining or breath-holding beyond comfort.", "Release slowly. Stop for dizziness, pain or pelvic-floor pressure."],
+  "Standing DB Lateral Raise (Lean-Away)": ["Hold a stable support, lean slightly away and let the dumbbell hang under the shoulder.", "Lead with the elbow and raise in the shoulder blade's natural plane.", "Stop near shoulder height and lower for three full seconds without shrugging."],
+  "Dumbbell Pullover": ["Lie securely across or along the bench, feet planted, ribs down and elbows softly bent.", "Lower the dumbbell only to a comfortable lat stretch without flaring the ribs.", "Pull back over the chest using the lats; do not turn it into a triceps extension."],
+  "Machine Shoulder Press": ["Adjust the seat so handles begin around ear or shoulder height and keep the back supported.", "Press smoothly with forearms roughly vertical and shoulders away from the ears.", "Lower for two seconds and stop before the shoulders roll forward."],
+  "Straight-Arm Pulldown": ["Hinge slightly with arms long, elbows softly unlocked and ribs down.", "Sweep the bar toward the thighs by pulling from the armpits.", "Pause at the bottom and return until the lats stretch without the lower back arching."],
+  "Cable Lateral Raise (Triple Drop)": ["Use the same strict setup as the behind-back cable raise and prepare lighter pin positions in advance.", "Keep every rep smooth; reduce weight as soon as the shoulder starts shrugging or the torso swings.", "The drop sequence is optional and GREEN-day only. Technique always outranks fatigue."],
+  "EZ-Bar Curl": ["Choose the hand position that keeps wrists comfortable and stand with ribs stacked.", "Keep elbows close to the sides and curl without body swing.", "Lower fully for two seconds; stop before the shoulders take over."],
+  "Close-Grip Bench Press": ["Use a grip just inside shoulder width, feet planted and shoulder blades stable.", "Lower to the lower chest with elbows angled naturally, not pinned hard to the body.", "Press evenly without bouncing or letting wrists fold back."],
+  "Incline DB Curl": ["Set a moderate incline and keep the shoulders touching the bench with arms hanging long.", "Curl while the upper arm stays behind the torso.", "Lower for three seconds to a comfortable stretch without forcing the elbow joint."],
+  "Overhead Tricep Extension": ["Keep ribs down, elbows pointing forward and shoulders comfortable.", "Lower the weight behind the head while the upper arms remain still.", "Extend smoothly without flaring the elbows or arching the back."],
+  "Hammer Curls": ["Hold the dumbbells with palms facing inward and stand tall.", "Curl with elbows by the ribs and wrists neutral.", "Lower under control to full extension without swinging."],
+};
+
 const HABITS = [
   { id: "incline", label: "30-min incline walk post-training", detail: "10\u201312% \u00b7 4.5\u20135 km/h \u00b7 HR 120\u2013130" },
   { id: "vacuums", label: "Vacuums \u2014 6 sets daily", detail: "20\u201330s holds. Free waist reduction." },
   { id: "evewalk", label: "Evening walk 40\u201345 min", detail: "Easy pace, Zone 2 (~100\u2013110 bpm)" },
-  { id: "sauna", label: "Sauna 15\u201320 min", detail: "Recovery + GH support" },
+  { id: "sauna", label: "Sauna 15\u201320 min", detail: "Optional relaxation if well hydrated and medically appropriate" },
 ];
 
 const GOAL = { kg: 83, waist: 88, startKg: 87.5, startWaist: 93 };
@@ -124,18 +162,55 @@ const todayKey = () => {
 };
 const jsDayToProgram = (d) => (d === 0 ? 7 : d);
 
-function readiness(g) {
-  if (!g) return null;
+function readiness(g, selfStatus = "normal") {
+  if (!g && selfStatus !== "wired") return null;
   let pts = 0, n = 0;
-  if (g.sleep_score != null) { n++; pts += g.sleep_score >= 75 ? 1 : g.sleep_score >= 60 ? 0.5 : 0; }
-  if (g.body_battery != null) { n++; pts += g.body_battery >= 70 ? 1 : g.body_battery >= 50 ? 0.5 : 0; }
-  if (g.hrv != null && g.hrv_baseline != null) { n++; pts += g.hrv >= g.hrv_baseline ? 1 : g.hrv >= g.hrv_baseline * 0.9 ? 0.5 : 0; }
-  if (g.sleep_hours != null) { n++; pts += g.sleep_hours >= 7 ? 1 : g.sleep_hours >= 6 ? 0.5 : 0; }
-  if (!n) return null;
-  const r = pts / n;
-  if (r >= 0.75) return { level: "GREEN", color: C.green, msg: "Full session as programmed. Attack the priority work." };
-  if (r >= 0.45) return { level: "AMBER", color: C.amber, msg: "Train, but drop a set from non-priority exercises. Keep ALL lateral raise volume." };
-  return { level: "RED", color: C.hot, msg: "Recovery compromised. Walk + sauna only, or a light laterals-only session. The data doesn't lie." };
+  const reasons = [];
+  if (g && g.sleep_score != null) {
+    n++; pts += g.sleep_score >= 75 ? 1 : g.sleep_score >= 60 ? 0.5 : 0;
+    if (g.sleep_score < 60) reasons.push("low sleep score");
+  }
+  if (g && g.body_battery != null) {
+    n++; pts += g.body_battery >= 70 ? 1 : g.body_battery >= 50 ? 0.5 : 0;
+    if (g.body_battery < 35) reasons.push("low body battery");
+  }
+  if (g && g.hrv != null && g.hrv_baseline != null) {
+    n++; pts += g.hrv >= g.hrv_baseline ? 1 : g.hrv >= g.hrv_baseline * 0.9 ? 0.5 : 0;
+    if (g.hrv < g.hrv_baseline * 0.85) reasons.push("HRV well below baseline");
+  }
+  if (g && g.sleep_hours != null) {
+    n++; pts += g.sleep_hours >= 7 ? 1 : g.sleep_hours >= 6 ? 0.5 : 0;
+    if (g.sleep_hours < 6) reasons.push("under 6 hours sleep");
+  }
+  if (g && g.stress != null) {
+    n++; pts += g.stress <= 30 ? 1 : g.stress <= 50 ? 0.5 : 0;
+    if (g.stress > 50) reasons.push("high Garmin stress");
+  }
+
+  const hardStop = g && (
+    (g.sleep_hours != null && g.sleep_hours < 5.5) ||
+    (g.body_battery != null && g.body_battery < 25) ||
+    (g.stress != null && g.stress >= 65) ||
+    (g.hrv != null && g.hrv_baseline != null && g.hrv < g.hrv_baseline * 0.8)
+  );
+  let level = hardStop || (!n && selfStatus === "wired") ? "RED" : (pts / Math.max(n, 1) >= 0.78 ? "GREEN" : pts / Math.max(n, 1) >= 0.5 ? "AMBER" : "RED");
+  if (selfStatus === "wired") {
+    reasons.unshift("you feel wired or drained");
+    level = level === "GREEN" ? "AMBER" : "RED";
+  }
+
+  if (level === "GREEN") return {
+    level, color: C.green, rpe: "7\u20138", rir: "2\u20133", volume: "100%", rest: "90\u2013150 sec",
+    msg: "Good recovery signals. Complete the planned sets with clean reps and no grinding.", reasons,
+  };
+  if (level === "AMBER") return {
+    level, color: C.amber, rpe: "6\u20137", rir: "3\u20134", volume: "70\u201380%", rest: "120\u2013180 sec",
+    msg: "Use lighter loads, remove one set from each non-priority exercise and avoid failure or drop sets.", reasons,
+  };
+  return {
+    level: "RED", color: C.hot, rpe: "RECOVERY", rir: "\u2014", volume: "0\u201340%", rest: "Easy pace",
+    msg: "Skip hard lifting. Choose an easy walk, mobility or a very short technique-only session if you feel well.", reasons,
+  };
 }
 
 function VTaperCoach() {
@@ -172,7 +247,7 @@ function VTaperCoach() {
 
   useEffect(() => {
     (async () => {
-      let data = { startDate: null, restSec: 90, logs: {}, habits: {}, body: [] };
+      let data = { startDate: null, restSec: 90, logs: {}, habits: {}, body: [], checkins: {} };
       try {
         const res = await storage.get("vtaper-v2");
         if (res && res.value) data = { ...data, ...JSON.parse(res.value) };
@@ -246,7 +321,17 @@ function VTaperCoach() {
     const arr = cur.ex[exIdx] || [];
     const wasDone = arr[setIdx] && arr[setIdx].done;
     setField(exIdx, setIdx, "done", !wasDone);
-    if (!wasDone) setTimer(state.restSec);
+    if (!wasDone) {
+      setTimer(state.restSec);
+      const exercise = PROGRAM[selDay].ex[exIdx];
+      const nSets = effSets(exercise);
+      const finishing = [...Array(nSets)].every((_, i) => i === setIdx || (arr[i] && arr[i].done));
+      if (finishing) {
+        setOpenEx(null);
+        setToast(`${exercise.name} complete`);
+        setTimeout(() => setToast(null), 2200);
+      }
+    }
   };
 
   const prevKeys = Object.keys(state.logs)
@@ -268,6 +353,25 @@ function VTaperCoach() {
     persist({ ...state, habits });
   };
 
+  const setCheckin = (value) => {
+    const checkins = { ...(state.checkins || {}), [tk]: value };
+    persist({ ...state, checkins });
+  };
+
+  const copyPrevious = (exIdx, nSets, previous) => {
+    const logs = { ...state.logs };
+    const cur = logs[tk] && logs[tk].day === selDay ? { ...logs[tk], ex: { ...logs[tk].ex } } : { day: selDay, ex: {} };
+    cur.ex[exIdx] = [...Array(nSets)].map((_, si) => ({
+      w: previous[si] && previous[si].w != null ? previous[si].w : "",
+      r: previous[si] && previous[si].r != null ? previous[si].r : "",
+      done: false,
+    }));
+    logs[tk] = cur;
+    persist({ ...state, logs });
+    setToast("Previous weights copied");
+    setTimeout(() => setToast(null), 1800);
+  };
+
   const addBody = (kg, waist) => {
     if (!kg && !waist) return;
     const body = state.body.filter((b) => b.d !== tk);
@@ -280,24 +384,27 @@ function VTaperCoach() {
   const lastBody = state.body.length ? state.body[state.body.length - 1] : null;
   const day = PROGRAM[selDay];
   const todayProg = PROGRAM[todayNum];
+  const checkin = (state.checkins && state.checkins[tk]) || "normal";
+  const currentGarmin = garmin && garmin.date === tk ? garmin : null;
+  const recovery = readiness(currentGarmin, checkin);
 
   return (
-    <div style={{ minHeight: "100vh", background: C.bg, color: C.text, fontFamily: "'Inter', system-ui, sans-serif", paddingBottom: 130 }}>
+    <div className="app-shell" style={{ background: C.bg, color: C.text, fontFamily: "'Inter', system-ui, sans-serif", paddingBottom: 138 }}>
 
-      <header style={{ padding: "18px 18px 12px", borderBottom: `1px solid ${C.border}`, background: C.bg, position: "sticky", top: 0, zIndex: 20 }}>
+      <header className="screen-pad" style={{ paddingTop: "max(18px, env(safe-area-inset-top))", paddingBottom: 13, borderBottom: `1px solid ${C.border}`, background: C.bg, position: "sticky", top: 0, zIndex: 20 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
           <div>
             <div className="anton" style={{ fontSize: 26, lineHeight: 1 }}>
               V-TAPER <span style={{ color: C.amber }}>COACH</span>
             </div>
-            <div className="mono" style={{ fontSize: 11, color: C.dim, marginTop: 4 }}>
-              WEEK {week}/8 \u00b7 {phase}
+            <div className="mono" style={{ fontSize: 12, color: C.dim, marginTop: 5 }}>
+              WEEK {week}/8 · {phase}
             </div>
           </div>
           <div style={{ textAlign: "right" }}>
             <div className="mono" style={{ fontSize: 11, color: C.dim }}>TARGET</div>
             <div className="mono" style={{ fontSize: 13, fontWeight: 600 }}>
-              {GOAL.kg}<span style={{ color: C.faint }}>kg</span> \u00b7 {GOAL.waist}<span style={{ color: C.faint }}>cm</span>
+              {GOAL.kg}<span style={{ color: C.faint }}>kg</span> · {GOAL.waist}<span style={{ color: C.faint }}>cm</span>
             </div>
           </div>
         </div>
@@ -309,8 +416,8 @@ function VTaperCoach() {
       </header>
 
       {tab === "today" && (
-        <div style={{ padding: 18 }}>
-          <GarminCard garmin={garmin} tk={tk} />
+        <div className="screen-pad" style={{ paddingTop: 16, paddingBottom: 18 }}>
+          <GarminCard garmin={garmin} tk={tk} checkin={checkin} onCheckin={setCheckin} />
           <div
             onClick={() => { setSelDay(todayNum); setTab("train"); }}
             style={{
@@ -320,7 +427,7 @@ function VTaperCoach() {
             }}
           >
             <div className="mono" style={{ fontSize: 11, color: C.dim }}>
-              TODAY \u00b7 {DAY_NAMES[todayNum]}{todayProg.priority ? " \u00b7 \u2b50 PRIORITY DAY" : ""}
+              TODAY · {DAY_NAMES[todayNum]}{todayProg.priority ? " \u00b7 \u2b50 PRIORITY DAY" : ""}
             </div>
             <div className="anton" style={{ fontSize: 34, marginTop: 6, color: todayProg.rest ? C.dim : C.text, lineHeight: 1.05 }}>
               {todayProg.title}
@@ -332,7 +439,7 @@ function VTaperCoach() {
                 <Stat label="MIN" value={todayProg.mins} />
                 <Stat label="DONE" value={dayDone(tk)} color={dayDone(tk) > 0 ? C.green : undefined} />
                 <div style={{ marginLeft: "auto", alignSelf: "center", background: C.amber, color: "#111", fontWeight: 700, fontSize: 13, padding: "10px 16px", borderRadius: 10 }}>
-                  TRAIN \u2192
+                  TRAIN →
                 </div>
               </div>
             )}
@@ -341,7 +448,7 @@ function VTaperCoach() {
 
           {week >= 5 && !todayProg.rest && (
             <div style={{ marginTop: 12, background: `${C.hot}14`, border: `1px solid ${C.hot}44`, borderRadius: 12, padding: "10px 14px", fontSize: 12.5, color: C.text }}>
-              <b style={{ color: C.hot }}>INTENSIFICATION:</b> RPE 9 \u00b7 +1 set on all lateral raises (added below) \u00b7 rest-pause on final lateral sets.
+              <b style={{ color: C.hot }}>WEEK 5–8:</b> Readiness overrides intensification. Never exceed today's RPE shown above; skip rest-pause and drop sets unless GREEN.
             </div>
           )}
 
@@ -374,15 +481,15 @@ function VTaperCoach() {
       )}
 
       {tab === "train" && (
-        <div style={{ padding: "14px 14px 0" }}>
-          <div style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 12 }}>
+        <div className="screen-pad" style={{ paddingTop: 14 }}>
+          <div className="scroll-days" style={{ display: "flex", gap: 7, overflowX: "auto", paddingBottom: 12 }}>
             {[1, 2, 3, 4, 5, 6, 7].map((d) => {
               const p = PROGRAM[d];
               const active = d === selDay;
               return (
                 <button key={d} onClick={() => { setSelDay(d); setOpenEx(null); }}
                   style={{
-                    flexShrink: 0, minWidth: 52, padding: "8px 6px", borderRadius: 10,
+                    flexShrink: 0, minWidth: 56, padding: "9px 7px", borderRadius: 11,
                     background: active ? (p.priority ? C.amber : C.text) : C.card,
                     color: active ? "#0C0E12" : d === todayNum ? C.amber : C.dim,
                     border: `1px solid ${active ? "transparent" : C.border}`,
@@ -398,9 +505,11 @@ function VTaperCoach() {
           <div style={{ fontSize: 13, color: C.dim, marginBottom: 4 }}>{day.sub}</div>
           {!day.rest && (
             <div className="mono" style={{ fontSize: 11, color: C.faint, marginBottom: 14 }}>
-              {day.ex.reduce((a, e) => a + effSets(e), 0)} SETS \u00b7 {day.mins} MIN{prevLog ? " \u00b7 LAST SESSION SHOWN IN GREY" : ""}
+              {day.ex.reduce((a, e) => a + effSets(e), 0)} SETS · {day.mins} MIN{prevLog ? " \u00b7 LAST SESSION SHOWN IN GREY" : ""}
             </div>
           )}
+
+          {!day.rest && <TrainingDose r={recovery} compact />}
 
           {day.rest && (
             <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: 18, fontSize: 14, color: C.dim, lineHeight: 1.6, marginTop: 8 }}>
@@ -414,64 +523,91 @@ function VTaperCoach() {
             const prev = (prevLog && prevLog.ex && prevLog.ex[i]) || [];
             const doneCount = cur.filter((s) => s && s.done).length;
             const open = openEx === i;
+            const complete = doneCount >= nSets && nSets > 0;
+            const showBody = !complete || open;
+            const hasPrevious = prev.some((s) => s && (s.w || s.r));
+            const formGuide = FORM_GUIDES[ex.name] || [ex.cue];
             return (
-              <div key={i} style={{ background: C.card, border: `1px solid ${doneCount >= nSets && nSets > 0 ? C.green + "55" : C.border}`, borderRadius: 14, marginBottom: 10, overflow: "hidden" }}>
+              <div key={i} data-testid={`exercise-${i}`} style={{ background: C.card, border: `2px solid ${complete ? C.green : C.border}`, borderRadius: 16, marginBottom: 12, overflow: "hidden" }}>
                 <button onClick={() => setOpenEx(open ? null : i)}
-                  style={{ width: "100%", textAlign: "left", background: "transparent", border: "none", color: C.text, padding: "14px 14px 12px" }}>
-                  <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
+                  aria-expanded={open}
+                  style={{ width: "100%", textAlign: "left", background: complete ? `${C.green}10` : "transparent", border: "none", color: C.text, padding: complete && !open ? "11px 14px" : "14px 14px 12px" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 11 }}>
                     <div className="mono" style={{
-                      flexShrink: 0, width: 34, height: 34, borderRadius: 9, display: "flex", alignItems: "center", justifyContent: "center",
-                      background: ex.score === 10 ? C.amber : C.surface, color: ex.score === 10 ? "#111" : C.dim,
-                      fontWeight: 800, fontSize: 13, border: `1px solid ${ex.score === 10 ? C.amber : C.border}`,
-                    }}>{ex.score}</div>
+                      flexShrink: 0, width: 38, height: 38, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center",
+                      background: complete ? C.green : ex.score === 10 ? C.amber : C.surface, color: complete || ex.score === 10 ? "#07100C" : C.text,
+                      fontWeight: 900, fontSize: complete ? 20 : 14, border: `1px solid ${complete ? C.green : ex.score === 10 ? C.amber : C.border}`,
+                    }}>{complete ? "\u2713" : ex.score}</div>
                     <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: 15, fontWeight: 700, lineHeight: 1.25 }}>
-                        {ex.name} {ex.ecc && <span style={{ color: C.hot, fontSize: 11 }}>\u26a0 3s ECC</span>}
+                      <div style={{ fontSize: 17, fontWeight: 800, lineHeight: 1.25 }}>
+                        {ex.name} {ex.ecc && <span style={{ color: C.hot, fontSize: 11 }}>⚠ 3s ECC</span>}
                       </div>
-                      <div className="mono" style={{ fontSize: 11.5, color: C.dim, marginTop: 3 }}>
-                        {nSets} \u00d7 {ex.reps}{week >= 5 && ex.lat ? " (+1 set)" : ""} \u00b7 {ex.tempo}
+                      <div className="mono" style={{ fontSize: 12, color: complete ? C.green : C.dim, marginTop: 4, lineHeight: 1.4 }}>
+                        {complete && !open ? `COMPLETE \u00b7 ${doneCount} SETS \u00b7 TAP TO REOPEN` : `${nSets} \u00d7 ${ex.reps}${week >= 5 && ex.lat ? " (+1 set)" : ""} \u00b7 ${ex.tempo}`}
                       </div>
                     </div>
-                    <div className="mono" style={{ fontSize: 12, color: doneCount >= nSets && nSets > 0 ? C.green : C.faint, fontWeight: 600, alignSelf: "center" }}>
-                      {doneCount}/{nSets}
+                    <div style={{ textAlign: "right", alignSelf: "center" }}>
+                      <div className="mono" style={{ fontSize: 13, color: complete ? C.green : C.text, fontWeight: 900 }}>
+                        {complete && !open ? "\u25be" : `${doneCount}/${nSets}`}
+                      </div>
+                      {(!complete || open) && <div className="mono" style={{ color: C.ice, fontSize: 9.5, fontWeight: 800, marginTop: 3 }}>FORM {open ? "\u25b4" : "\u25be"}</div>}
                     </div>
                   </div>
                 </button>
 
-                <div style={{ padding: "0 14px 12px" }}>
-                  {[...Array(nSets)].map((_, si) => {
-                    const s = cur[si] || {};
-                    const p = prev[si] || {};
-                    return (
-                      <div key={si} className="setrow" style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 6 }}>
-                        <div className="mono" style={{ width: 20, fontSize: 11, color: C.faint }}>{si + 1}</div>
-                        <input inputMode="decimal" placeholder={p.w ? `${p.w}` : "kg"} value={s.w || ""}
-                          onChange={(e) => setField(i, si, "w", e.target.value)}
-                          style={inp(s.done)} />
-                        <span style={{ color: C.faint, fontSize: 12 }}>\u00d7</span>
-                        <input inputMode="numeric" placeholder={p.r ? `${p.r}` : "reps"} value={s.r || ""}
-                          onChange={(e) => setField(i, si, "r", e.target.value)}
-                          style={inp(s.done)} />
-                        <button onClick={() => toggleDone(i, si)}
-                          style={{
-                            width: 46, height: 42, borderRadius: 10, flexShrink: 0,
-                            background: s.done ? C.green : C.surface,
-                            border: `1.5px solid ${s.done ? C.green : C.border}`,
-                            color: s.done ? "#0C0E12" : C.faint, fontWeight: 800, fontSize: 17,
-                          }}>\u2713</button>
-                      </div>
-                    );
-                  })}
-                </div>
+                {showBody && (
+                  <div style={{ padding: "0 12px 13px" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 7, minHeight: 26 }}>
+                      <div className="mono" style={{ width: 34, fontSize: 11, color: C.faint, textAlign: "center" }}>SET</div>
+                      <div className="mono" style={{ flex: 1, fontSize: 11, color: C.dim, textAlign: "center", fontWeight: 800 }}>WEIGHT</div>
+                      <div style={{ width: 12 }} />
+                      <div className="mono" style={{ flex: 1, fontSize: 11, color: C.dim, textAlign: "center", fontWeight: 800 }}>REPS</div>
+                      <div style={{ width: 52 }} />
+                    </div>
+                    {hasPrevious && doneCount === 0 && (
+                      <button onClick={() => copyPrevious(i, nSets, prev)}
+                        style={{ width: "100%", minHeight: 42, marginBottom: 9, borderRadius: 10, background: `${C.ice}12`, color: C.ice, border: `1px solid ${C.ice}88`, fontWeight: 800, fontSize: 13 }}>
+                        COPY LAST SESSION'S WEIGHTS + REPS
+                      </button>
+                    )}
+                    {[...Array(nSets)].map((_, si) => {
+                      const s = cur[si] || {};
+                      const p = prev[si] || {};
+                      return (
+                        <div key={si} className="setrow" style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 8, padding: s.done ? "3px" : 0, borderRadius: 12, background: s.done ? `${C.green}0D` : "transparent" }}>
+                          <div className="mono" style={{ width: 31, height: 31, borderRadius: 9, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 800, color: s.done ? "#07100C" : C.text, background: s.done ? C.green : C.surface, border: `1px solid ${s.done ? C.green : C.border}` }}>{si + 1}</div>
+                          <input data-testid={`exercise-${i}-set-${si}-weight`} aria-label={`${ex.name}, set ${si + 1}, weight`} inputMode="decimal" autoComplete="off" placeholder={p.w ? `${p.w}` : "kg"} value={s.w || ""}
+                            onFocus={(e) => e.target.select()} onChange={(e) => setField(i, si, "w", e.target.value)}
+                            style={inp(s.done)} />
+                          <span style={{ color: C.dim, fontSize: 15 }}>×</span>
+                          <input data-testid={`exercise-${i}-set-${si}-reps`} aria-label={`${ex.name}, set ${si + 1}, repetitions`} inputMode="numeric" autoComplete="off" placeholder={p.r ? `${p.r}` : "reps"} value={s.r || ""}
+                            onFocus={(e) => e.target.select()} onChange={(e) => setField(i, si, "r", e.target.value)}
+                            style={inp(s.done)} />
+                          <button data-testid={`exercise-${i}-set-${si}-done`} aria-label={`${s.done ? "Reopen" : "Complete"} set ${si + 1}`} onClick={() => toggleDone(i, si)}
+                            style={{
+                              width: 52, height: 52, minHeight: 52, borderRadius: 12, flexShrink: 0,
+                              background: s.done ? C.green : C.surface,
+                              border: `2px solid ${s.done ? C.green : C.dim}`,
+                              color: s.done ? "#07100C" : C.text, fontWeight: 900, fontSize: 22,
+                            }}>✓</button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
 
                 {open && (
-                  <div style={{ borderTop: `1px solid ${C.border}`, padding: "12px 14px", background: C.surface }}>
-                    <div style={{ fontSize: 13, color: C.dim, lineHeight: 1.55 }}>{ex.cue}</div>
-                    {ex.drop && <div style={{ marginTop: 8, fontSize: 12, color: C.hot }}>Triple drop: 12 reps \u2192 drop weight \u2192 10 \u2192 drop \u2192 8. No rest between drops.</div>}
+                  <div style={{ borderTop: `1px solid ${C.border}`, padding: "14px", background: C.surface }}>
+                    <div className="mono" style={{ fontSize: 11, color: C.amber, fontWeight: 800, letterSpacing: 1.2 }}>BEST FORM</div>
+                    <div style={{ fontSize: 14, color: C.text, lineHeight: 1.55, marginTop: 8, fontWeight: 650 }}>{ex.cue}</div>
+                    <ol style={{ margin: "10px 0 0", paddingLeft: 22, color: C.dim }}>
+                      {formGuide.map((step, stepIdx) => <li key={stepIdx} style={{ fontSize: 14, lineHeight: 1.5, marginBottom: 7, paddingLeft: 3 }}>{step}</li>)}
+                    </ol>
+                    {ex.drop && <div style={{ marginTop: 8, fontSize: 13, lineHeight: 1.45, color: C.hot, fontWeight: 700 }}>GREEN days only: 12 reps \u2192 reduce weight \u2192 10 \u2192 reduce \u2192 8. Stop if form changes.</div>}
                     {ex.yt && (
                       <a href={`https://www.youtube.com/watch?v=${ex.yt}`} target="_blank" rel="noreferrer"
-                        style={{ display: "inline-block", marginTop: 10, color: C.ice, fontSize: 13, fontWeight: 600, textDecoration: "none" }}>
-                        \u25b6 Watch form video
+                        style={{ display: "inline-flex", alignItems: "center", minHeight: 48, marginTop: 8, color: C.ice, fontSize: 14, fontWeight: 800, textDecoration: "none" }}>
+                        ▶ WATCH FORM VIDEO
                       </a>
                     )}
                   </div>
@@ -483,16 +619,16 @@ function VTaperCoach() {
       )}
 
       {tab === "progress" && (
-        <div style={{ padding: 18 }}>
+        <div className="screen-pad" style={{ paddingTop: 18, paddingBottom: 18 }}>
           <div style={{ display: "flex", gap: 10 }}>
             <BigStat label="WEIGHT" value={(lastBody && lastBody.kg) || GOAL.startKg} unit="kg" goal={GOAL.kg} start={GOAL.startKg} />
             <BigStat label="WAIST" value={(lastBody && lastBody.waist) || GOAL.startWaist} unit="cm" goal={GOAL.waist} start={GOAL.startWaist} />
           </div>
 
-          <SectionTitle>WEIGHT \u2014 TARGET {GOAL.kg}KG</SectionTitle>
+          <SectionTitle>WEIGHT — TARGET {GOAL.kg}KG</SectionTitle>
           <Chart data={state.body.filter((b) => b.kg).map((b) => b.kg)} goal={GOAL.kg} color={C.amber} />
 
-          <SectionTitle>WAIST \u2014 TARGET {GOAL.waist}CM</SectionTitle>
+          <SectionTitle>WAIST — TARGET {GOAL.waist}CM</SectionTitle>
           <Chart data={state.body.filter((b) => b.waist).map((b) => b.waist)} goal={GOAL.waist} color={C.ice} />
 
           <SectionTitle>LOG ENTRY</SectionTitle>
@@ -521,8 +657,8 @@ function VTaperCoach() {
       )}
 
       {tab === "plan" && (
-        <div style={{ padding: 18 }}>
-          <SectionTitle>THE SPLIT \u2014 4-EXPERT CONSENSUS v2.0</SectionTitle>
+        <div className="screen-pad" style={{ paddingTop: 18, paddingBottom: 18 }}>
+          <SectionTitle>THE SPLIT — 4-EXPERT CONSENSUS v2.0</SectionTitle>
           {[1, 2, 3, 4, 5, 6, 7].map((d) => {
             const p = PROGRAM[d];
             return (
@@ -544,12 +680,13 @@ function VTaperCoach() {
           })}
 
           <SectionTitle>PHASES</SectionTitle>
-          <Rule t="Weeks 1\u20134 \u00b7 Foundation" d="RPE 7\u20138, keep 2\u20133 reps in reserve. Build the groove, own the tempos." />
-          <Rule t="Weeks 5\u20138 \u00b7 Intensification" d="RPE 9. +1 set on every lateral raise variation. Rest-pause on final lateral sets." hot />
+          <Rule t="Weeks 1\u20134 \u00b7 Foundation" d="Use today's Garmin prescription. On GREEN, cap work at RPE 7\u20138 and keep 2\u20133 reps in reserve." />
+          <Rule t="Weeks 5\u20138 \u00b7 Controlled progression" d="Readiness always overrides the phase. Add lateral-raise volume only on GREEN days; never chase failure." hot />
 
           <SectionTitle>RULES</SectionTitle>
           <Rule t="3-sec eccentric on ALL lateral raises" d="~45s time-under-tension per set. This is where the caps grow." />
-          <Rule t="Fasted AM training" d="Black coffee + creatine + salt pre-workout. GH first thing." />
+          <Rule t="Cortisol-aware guardrail" d="Garmin cannot measure cortisol. Stress, HRV, sleep and your symptom check-in are conservative proxies; your clinician's advice overrides the app." />
+          <Rule t="Morning training" d="Hydrate first. Do not force a hard fasted session or extra caffeine when you feel wired, drained, dizzy or unwell." />
           <Rule t="No flat pressing, no heavy obliques, zero calves" d="Upper chest shelf only. Nothing that thickens the waist. Calves eliminated by consensus." />
           <Rule t="Macros" d="2000\u20132100 kcal \u00b7 200g protein \u00b7 150\u2013180g carbs \u00b7 55\u201365g fat." />
           <Rule t="Sleep 7h+" d="Garmin-tracked. Magnesium glycinate before bed." />
@@ -578,7 +715,7 @@ function VTaperCoach() {
 
       {timer !== null && (
         <div style={{
-          position: "fixed", left: 12, right: 12, bottom: 86, zIndex: 40,
+          position: "fixed", left: "50%", transform: "translateX(-50%)", width: "min(calc(100% - 24px), 496px)", bottom: 88, zIndex: 40,
           background: C.amber, color: "#0C0E12", borderRadius: 14, padding: "12px 16px",
           display: "flex", alignItems: "center", gap: 14, boxShadow: "0 8px 28px rgba(0,0,0,0.5)",
         }}>
@@ -598,7 +735,7 @@ function VTaperCoach() {
       )}
 
       <nav style={{
-        position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 30,
+        position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)", width: "min(100%, 520px)", zIndex: 30,
         background: "rgba(19,22,28,0.96)", backdropFilter: "blur(12px)",
         borderTop: `1px solid ${C.border}`, display: "flex",
         paddingBottom: "env(safe-area-inset-bottom, 8px)",
@@ -611,7 +748,7 @@ function VTaperCoach() {
         ].map(([id, label, icon]) => (
           <button key={id} onClick={() => setTab(id)}
             style={{
-              flex: 1, padding: "12px 0 10px", background: "transparent", border: "none",
+               flex: 1, padding: "11px 0 10px", background: "transparent", border: "none", minHeight: 62,
               color: tab === id ? C.amber : C.faint,
             }}>
             <div style={{ fontSize: 17 }}>{icon}</div>
@@ -624,45 +761,94 @@ function VTaperCoach() {
 }
 
 const inp = (done) => ({
-  flex: 1, minWidth: 0, height: 42, borderRadius: 10, border: `1.5px solid ${done ? C.green + "66" : C.border}`,
-  background: C.surface, color: done ? C.green : C.text, fontSize: 16, fontWeight: 600,
+  flex: 1, minWidth: 0, height: 52, borderRadius: 11, border: `2px solid ${done ? C.green : C.dim}`,
+  background: done ? `${C.green}0D` : C.surface, color: done ? C.green : C.text, fontSize: 18, fontWeight: 800,
   textAlign: "center", padding: "0 6px",
 });
 
-function GarminCard({ garmin, tk }) {
-  if (!garmin) return null;
-  const stale = garmin.date !== tk;
-  const r = readiness(garmin);
+function TrainingDose({ r, compact = false }) {
+  if (!r) return (
+    <div style={{ background: C.card, border: `2px solid ${C.border}`, borderRadius: 14, padding: 14, marginBottom: 14 }}>
+      <div style={{ fontSize: 14, fontWeight: 800 }}>No current recovery score</div>
+      <div style={{ color: C.dim, fontSize: 13, lineHeight: 1.45, marginTop: 4 }}>Keep today's session easy until Garmin data and your check-in are available.</div>
+    </div>
+  );
+  const items = compact
+    ? [["RPE", r.rpe], ["RIR", r.rir], ["VOL", r.volume], ["REST", r.rest.replace(" sec", "s")]]
+    : [["RPE", r.rpe], ["REPS LEFT", r.rir], ["VOLUME", r.volume], ["REST", r.rest]];
+  return (
+    <div style={{ background: `${r.color}12`, border: `2px solid ${r.color}`, borderRadius: 15, padding: compact ? 12 : 14, marginBottom: 14 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+        <div className="mono" style={{ fontSize: 12, color: C.text, fontWeight: 900, letterSpacing: .8 }}>TODAY'S TRAINING DOSE</div>
+        <div className="mono" style={{ color: "#07100C", background: r.color, borderRadius: 999, padding: "5px 11px", fontSize: 12, fontWeight: 900 }}>{r.level}</div>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: compact ? "repeat(4, minmax(0, 1fr))" : "repeat(2, minmax(0, 1fr))", gap: compact ? 5 : 8, marginTop: compact ? 9 : 11 }}>
+        {items.map(([label, value]) => (
+          <div key={label} style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, padding: compact ? "7px 5px" : "9px 10px", textAlign: compact ? "center" : "left" }}>
+            <div className="mono" style={{ color: C.faint, fontSize: compact ? 9 : 10, fontWeight: 800 }}>{label}</div>
+            <div className="mono" style={{ color: r.color, fontSize: compact ? 12 : 16, fontWeight: 900, marginTop: 2, whiteSpace: "nowrap" }}>{value}</div>
+          </div>
+        ))}
+      </div>
+      {!compact && <div style={{ color: C.text, fontSize: 14, lineHeight: 1.5, marginTop: 10, fontWeight: 650 }}>{r.msg}</div>}
+      {!compact && r.reasons && r.reasons.length > 0 && (
+        <div style={{ color: C.dim, fontSize: 12.5, lineHeight: 1.45, marginTop: 7 }}>Why: {r.reasons.join(", ")}.</div>
+      )}
+    </div>
+  );
+}
+
+function GarminCard({ garmin, tk, checkin, onCheckin }) {
+  const stale = !!(garmin && garmin.date !== tk);
+  const r = readiness(stale ? null : garmin, checkin);
   const M = ({ l, v, u }) => v == null ? null : (
-    <div style={{ flex: 1, minWidth: 62 }}>
-      <div className="mono" style={{ fontSize: 9.5, color: C.faint }}>{l}</div>
-      <div className="mono" style={{ fontSize: 16, fontWeight: 600 }}>{v}<span style={{ fontSize: 10, color: C.faint }}>{u}</span></div>
+    <div style={{ minWidth: 74, flex: "1 1 26%", background: C.bg, borderRadius: 9, padding: "8px 9px", border: `1px solid ${C.border}` }}>
+      <div className="mono" style={{ fontSize: 10, color: C.faint, fontWeight: 800 }}>{l}</div>
+      <div className="mono" style={{ fontSize: 17, fontWeight: 800, marginTop: 2 }}>{v}<span style={{ fontSize: 11, color: C.dim }}>{u}</span></div>
     </div>
   );
   return (
-    <div style={{ background: C.card, border: `1px solid ${r ? r.color + "55" : C.border}`, borderRadius: 16, padding: 16, marginBottom: 14 }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <div className="mono" style={{ fontSize: 11, color: C.dim }}>
-          GARMIN READINESS{stale ? ` \u00b7 ${garmin.date} (stale)` : ""}
+    <>
+      <div style={{ background: C.card, border: `2px solid ${C.border}`, borderRadius: 16, padding: 14, marginBottom: 12 }}>
+        <div className="mono" style={{ fontSize: 12, color: C.text, fontWeight: 900, letterSpacing: .6 }}>HOW DO YOU FEEL?</div>
+        <div style={{ color: C.dim, fontSize: 13, lineHeight: 1.4, marginTop: 4 }}>Choose WIRED / DRAINED whenever in doubt. It automatically reduces today's dose.</div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 7, marginTop: 10 }}>
+          {[["calm", "CALM"], ["normal", "NORMAL"], ["wired", "WIRED /\nDRAINED"]].map(([id, label]) => {
+            const active = checkin === id;
+            const color = id === "wired" ? C.hot : id === "calm" ? C.green : C.amber;
+            return <button key={id} onClick={() => onCheckin(id)} aria-pressed={active}
+              style={{ minHeight: 54, whiteSpace: "pre-line", borderRadius: 11, border: `2px solid ${active ? color : C.border}`, background: active ? `${color}22` : C.surface, color: active ? color : C.dim, fontSize: 12, fontWeight: 900 }}>{label}</button>;
+          })}
         </div>
-        {r && (
-          <div className="mono" style={{ fontSize: 11, fontWeight: 700, color: "#0C0E12", background: r.color, padding: "4px 10px", borderRadius: 999 }}>
-            {r.level}
+      </div>
+
+      <div style={{ background: C.card, border: `2px solid ${r ? r.color : C.border}`, borderRadius: 16, padding: 14, marginBottom: 12 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+          <div className="mono" style={{ fontSize: 12, color: C.text, fontWeight: 900 }}>
+            GARMIN RECOVERY{stale ? ` \u00b7 ${garmin.date} (OLD)` : ""}
           </div>
+          {!garmin && <div className="mono" style={{ color: C.amber, fontSize: 11, fontWeight: 800 }}>NO DATA</div>}
+        </div>
+        {garmin ? (
+          <div style={{ display: "flex", gap: 7, marginTop: 11, flexWrap: "wrap" }}>
+            <M l="SLEEP" v={garmin.sleep_score} u="" />
+            <M l="HOURS" v={garmin.sleep_hours} u="h" />
+            <M l="HRV" v={garmin.hrv} u="ms" />
+            <M l="RHR" v={garmin.resting_hr} u="" />
+            <M l="BATTERY" v={garmin.body_battery} u="" />
+            <M l="STRESS" v={garmin.stress} u="" />
+          </div>
+        ) : <div style={{ color: C.dim, fontSize: 13, marginTop: 8 }}>Run the Garmin sync or train conservatively.</div>}
+        {garmin && garmin.weight_kg != null && !stale && (
+          <div className="mono" style={{ fontSize: 11, color: C.green, marginTop: 9, fontWeight: 800 }}>\u2713 SCALE WEIGHT {garmin.weight_kg}KG AUTO-LOGGED</div>
         )}
       </div>
-      <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
-        <M l="SLEEP" v={garmin.sleep_score} u="" />
-        <M l="HOURS" v={garmin.sleep_hours} u="h" />
-        <M l="HRV" v={garmin.hrv} u="ms" />
-        <M l="RHR" v={garmin.resting_hr} u="" />
-        <M l="BATTERY" v={garmin.body_battery} u="" />
+
+      <TrainingDose r={r} />
+      <div style={{ color: C.faint, fontSize: 11.5, lineHeight: 1.45, margin: "-4px 2px 14px" }}>
+        Garmin does not measure cortisol. This is a conservative training guide based on recovery signals, not medical advice. Stop for chest pain, faintness or unusual symptoms and follow your clinician's plan.
       </div>
-      {r && <div style={{ fontSize: 12.5, color: C.dim, marginTop: 10, lineHeight: 1.5 }}>{r.msg}</div>}
-      {garmin.weight_kg != null && !stale && (
-        <div className="mono" style={{ fontSize: 10.5, color: C.green, marginTop: 8 }}>\u2713 Scale weight {garmin.weight_kg}kg auto-logged</div>
-      )}
-    </div>
+    </>
   );
 }
 
@@ -728,7 +914,7 @@ function BodyLogger({ onSave, last, today }) {
         <input inputMode="decimal" placeholder={today && today.waist ? `${today.waist} cm \u2713` : last && last.waist ? `${last.waist} cm` : "waist cm"} value={waist}
           onChange={(e) => setWaist(e.target.value)} style={inp(false)} />
         <button onClick={() => { onSave(kg, waist); setKg(""); setWaist(""); }}
-          style={{ flexShrink: 0, padding: "0 18px", height: 42, borderRadius: 10, background: C.amber, color: "#111", border: "none", fontWeight: 800, fontSize: 13 }}>
+          style={{ flexShrink: 0, padding: "0 18px", height: 52, borderRadius: 10, background: C.amber, color: "#111", border: "none", fontWeight: 800, fontSize: 13 }}>
           LOG
         </button>
       </div>
