@@ -24,6 +24,12 @@ Open the URL in Chrome -> menu -> "Add to Home screen" -> Install.
 4. Schedule: 05:45 and 06:30 Dubai time daily, before the fasted session.
    Scale weight is auto-logged into the app's body log.
 
+## Private visual progress photos
+- Open **Progress -> Visual Progress** to take or choose front, side, and back photos.
+- Photo copies are compressed and saved only in the phone browser's private IndexedDB storage.
+- Photos are never committed to GitHub, written to `garmin.json`, or uploaded by the app.
+- Removing site data or uninstalling the PWA can delete the private copies, so keep originals in Samsung Gallery or Secure Folder.
+
 Readiness logic:
 - GREEN: full session as programmed
 - AMBER: drop a set from non-priority lifts, keep all lateral volume

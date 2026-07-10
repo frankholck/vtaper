@@ -1,7 +1,7 @@
 {
   "name": "V-Taper Coach",
   "short_name": "V-Taper",
-  "description": "High-contrast mobile workout coach with Garmin recovery guidance",
+  "description": "High-contrast workout coach with Garmin guidance and private progress photos",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",

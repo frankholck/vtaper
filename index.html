@@ -31,9 +31,12 @@
   .screen-pad { padding-left: max(16px, env(safe-area-inset-left)); padding-right: max(16px, env(safe-area-inset-right)); }
   .scroll-days { scrollbar-width: none; }
   .scroll-days::-webkit-scrollbar { display: none; }
+  .photo-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .photo-select { width: 100%; min-height: 48px; border-radius: 10px; border: 2px solid #3C4859; background: #11161D; color: #FFFFFF; padding: 0 10px; font: 700 13px 'IBM Plex Mono', monospace; color-scheme: dark; }
   @media (max-width: 390px) {
     body { font-size: 16px; }
     .screen-pad { padding-left: 12px; padding-right: 12px; }
+    .photo-grid { gap: 8px; }
   }
 </style>
 </head>
@@ -47,6 +50,77 @@ const storage = {
   get: async (k) => { const v = localStorage.getItem(k); return v !== null ? { value: v } : null; },
   set: async (k, v) => localStorage.setItem(k, v),
 };
+
+/* Body photos live only in this browser profile. They are never sent to GitHub or Garmin. */
+const photoStorage = {
+  open: () => new Promise((resolve, reject) => {
+    if (!window.indexedDB) return reject(new Error("Private photo storage is unavailable on this device."));
+    const request = indexedDB.open("vtaper-private-photos", 1);
+    request.onupgradeneeded = () => {
+      const db = request.result;
+      if (!db.objectStoreNames.contains("photos")) db.createObjectStore("photos", { keyPath: "id" });
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error || new Error("Could not open private photo storage."));
+  }),
+  all: async () => {
+    const db = await photoStorage.open();
+    return new Promise((resolve, reject) => {
+      const request = db.transaction("photos", "readonly").objectStore("photos").getAll();
+      request.onsuccess = () => { db.close(); resolve(request.result || []); };
+      request.onerror = () => { db.close(); reject(request.error); };
+    });
+  },
+  put: async (photo) => {
+    const db = await photoStorage.open();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction("photos", "readwrite");
+      tx.objectStore("photos").put(photo);
+      tx.oncomplete = () => { db.close(); resolve(); };
+      tx.onerror = () => { db.close(); reject(tx.error); };
+    });
+  },
+  remove: async (id) => {
+    const db = await photoStorage.open();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction("photos", "readwrite");
+      tx.objectStore("photos").delete(id);
+      tx.oncomplete = () => { db.close(); resolve(); };
+      tx.onerror = () => { db.close(); reject(tx.error); };
+    });
+  },
+};
+
+function compressPhoto(file) {
+  return new Promise((resolve, reject) => {
+    if (!file || !file.type.startsWith("image/")) return reject(new Error("Please choose an image file."));
+    if (file.size > 25 * 1024 * 1024) return reject(new Error("That photo is larger than 25 MB. Choose a smaller image."));
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error("The photo could not be read."));
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = () => reject(new Error("The photo format is not supported."));
+      img.onload = () => {
+        const render = (maxSide, quality) => {
+          const scale = Math.min(1, maxSide / Math.max(img.naturalWidth, img.naturalHeight));
+          const width = Math.max(1, Math.round(img.naturalWidth * scale));
+          const height = Math.max(1, Math.round(img.naturalHeight * scale));
+          const canvas = document.createElement("canvas");
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext("2d", { alpha: false });
+          ctx.fillStyle = "#000";
+          ctx.fillRect(0, 0, width, height);
+          ctx.drawImage(img, 0, 0, width, height);
+          return canvas.toDataURL("image/jpeg", quality);
+        };
+        resolve({ dataUrl: render(1600, 0.84), thumbUrl: render(420, 0.76) });
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
 
 /* ============ V-TAPER COACH 2.0 — 4-Expert Consensus Program v2.0 ============ */
 
@@ -221,6 +295,9 @@ function VTaperCoach() {
   const [timer, setTimer] = useState(null);
   const [toast, setToast] = useState(null);
   const [garmin, setGarmin] = useState(null);
+  const [photos, setPhotos] = useState([]);
+  const [photoBusy, setPhotoBusy] = useState(false);
+  const [photoError, setPhotoError] = useState(null);
   const saveT = useRef(null);
   const timerRef = useRef(null);
 
@@ -230,6 +307,19 @@ function VTaperCoach() {
       .then((r) => (r.ok ? r.json() : null))
       .then((g) => g && setGarmin(g))
       .catch(() => {});
+  }, []);
+
+  /* Body photos are loaded from this device only, never from the network. */
+  useEffect(() => {
+    let active = true;
+    photoStorage.all()
+      .then((items) => {
+        if (!active) return;
+        items.sort((a, b) => (a.date === b.date ? b.createdAt - a.createdAt : a.date < b.date ? 1 : -1));
+        setPhotos(items);
+      })
+      .catch((e) => active && setPhotoError(e.message || "Private photo storage could not be opened."));
+    return () => { active = false; };
   }, []);
 
   /* auto-log Garmin scale weight into the body log once per day */
@@ -370,6 +460,47 @@ function VTaperCoach() {
     persist({ ...state, logs });
     setToast("Previous weights copied");
     setTimeout(() => setToast(null), 1800);
+  };
+
+  const addProgressPhoto = async (file, view, date) => {
+    setPhotoBusy(true);
+    setPhotoError(null);
+    try {
+      const { dataUrl, thumbUrl } = await compressPhoto(file);
+      const photo = {
+        id: `photo-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        date: date || tk,
+        view,
+        createdAt: Date.now(),
+        dataUrl,
+        thumbUrl,
+      };
+      await photoStorage.put(photo);
+      if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
+      setPhotos((items) => [photo, ...items].sort((a, b) => (a.date === b.date ? b.createdAt - a.createdAt : a.date < b.date ? 1 : -1)));
+      setToast("Private progress photo saved");
+      setTimeout(() => setToast(null), 2200);
+    } catch (e) {
+      setPhotoError(e && e.message ? e.message : "The photo could not be saved.");
+    } finally {
+      setPhotoBusy(false);
+    }
+  };
+
+  const removeProgressPhoto = async (photo) => {
+    if (!window.confirm(`Delete the ${photo.view} photo from ${photo.date}? This cannot be undone.`)) return;
+    setPhotoBusy(true);
+    setPhotoError(null);
+    try {
+      await photoStorage.remove(photo.id);
+      setPhotos((items) => items.filter((item) => item.id !== photo.id));
+      setToast("Photo deleted from this phone");
+      setTimeout(() => setToast(null), 1800);
+    } catch (e) {
+      setPhotoError(e && e.message ? e.message : "The photo could not be deleted.");
+    } finally {
+      setPhotoBusy(false);
+    }
   };
 
   const addBody = (kg, waist) => {
@@ -624,6 +755,9 @@ function VTaperCoach() {
             <BigStat label="WEIGHT" value={(lastBody && lastBody.kg) || GOAL.startKg} unit="kg" goal={GOAL.kg} start={GOAL.startKg} />
             <BigStat label="WAIST" value={(lastBody && lastBody.waist) || GOAL.startWaist} unit="cm" goal={GOAL.waist} start={GOAL.startWaist} />
           </div>
+
+          <SectionTitle>VISUAL PROGRESS</SectionTitle>
+          <PhotoTracker photos={photos} onAdd={addProgressPhoto} onRemove={removeProgressPhoto} busy={photoBusy} error={photoError} />
 
           <SectionTitle>WEIGHT — TARGET {GOAL.kg}KG</SectionTitle>
           <Chart data={state.body.filter((b) => b.kg).map((b) => b.kg)} goal={GOAL.kg} color={C.amber} />
@@ -899,6 +1033,149 @@ function Chart({ data, goal, color }) {
         {data.map((v, i) => <circle key={i} cx={x(i)} cy={y(v)} r="3" fill={color} />)}
         <text x={x(data.length - 1)} y={y(data[data.length - 1]) - 8} textAnchor="end" fill={C.text} fontSize="10" fontWeight="700" fontFamily="monospace">{data[data.length - 1]}</text>
       </svg>
+    </div>
+  );
+}
+
+function PhotoTracker({ photos, onAdd, onRemove, busy, error }) {
+  const [view, setView] = useState("front");
+  const [date, setDate] = useState(todayKey());
+  const [viewer, setViewer] = useState(null);
+  const [leftId, setLeftId] = useState("");
+  const [rightId, setRightId] = useState("");
+  const fileRef = useRef(null);
+
+  const viewPhotos = useMemo(() => photos
+    .filter((photo) => photo.view === view)
+    .sort((a, b) => (a.date === b.date ? a.createdAt - b.createdAt : a.date < b.date ? -1 : 1)), [photos, view]);
+
+  useEffect(() => {
+    if (!viewPhotos.length) {
+      setLeftId("");
+      setRightId("");
+      return;
+    }
+    setLeftId(viewPhotos[0].id);
+    setRightId(viewPhotos[viewPhotos.length - 1].id);
+  }, [photos, view]);
+
+  const left = viewPhotos.find((photo) => photo.id === leftId);
+  const right = viewPhotos.find((photo) => photo.id === rightId);
+  const newestFirst = [...viewPhotos].reverse();
+  const niceDate = (value) => new Date(`${value}T12:00:00`).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
+
+  return (
+    <div>
+      <div style={{ background: `${C.green}0D`, border: `2px solid ${C.green}`, borderRadius: 15, padding: 14 }}>
+        <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
+          <div style={{ width: 34, height: 34, borderRadius: 10, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", background: C.green, color: "#07100C", fontSize: 18, fontWeight: 900 }}>⌂</div>
+          <div>
+            <div className="mono" style={{ color: C.green, fontSize: 12, fontWeight: 900 }}>PRIVATE ON THIS PHONE</div>
+            <div style={{ color: C.dim, fontSize: 13, lineHeight: 1.45, marginTop: 4 }}>Photos are stored only inside this browser app. They are never uploaded to GitHub, Garmin or the internet.</div>
+          </div>
+        </div>
+      </div>
+
+      <div style={{ background: C.card, border: `2px solid ${C.border}`, borderRadius: 15, padding: 14, marginTop: 10 }}>
+        <div className="mono" style={{ color: C.text, fontSize: 12, fontWeight: 900, letterSpacing: .7 }}>ADD A PROGRESS PHOTO</div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 7, marginTop: 11 }}>
+          {["front", "side", "back"].map((item) => (
+            <button key={item} onClick={() => setView(item)} aria-pressed={view === item}
+              style={{ minHeight: 49, borderRadius: 10, border: `2px solid ${view === item ? C.amber : C.border}`, background: view === item ? `${C.amber}20` : C.surface, color: view === item ? C.amber : C.dim, fontWeight: 900, fontSize: 12 }}>
+              {item.toUpperCase()}
+            </button>
+          ))}
+        </div>
+
+        <label className="mono" style={{ display: "block", color: C.dim, fontSize: 11, fontWeight: 800, margin: "13px 0 6px" }}>PHOTO DATE</label>
+        <input type="date" value={date} max={todayKey()} onChange={(e) => setDate(e.target.value)}
+          style={{ ...inp(false), width: "100%", colorScheme: "dark" }} />
+
+        <input ref={fileRef} data-testid="progress-photo-file" type="file" accept="image/*" style={{ display: "none" }}
+          onChange={async (e) => {
+            const file = e.target.files && e.target.files[0];
+            if (file) await onAdd(file, view, date);
+            e.target.value = "";
+          }} />
+        <button data-testid="progress-photo-add" disabled={busy} onClick={() => fileRef.current && fileRef.current.click()}
+          style={{ width: "100%", minHeight: 56, borderRadius: 12, border: "none", marginTop: 11, background: busy ? C.border : C.amber, color: "#111", fontWeight: 900, fontSize: 14 }}>
+          {busy ? "SAVING PHOTO…" : "+ TAKE OR CHOOSE PHOTO"}
+        </button>
+        {error && <div role="alert" style={{ color: C.hot, fontSize: 13, lineHeight: 1.45, marginTop: 9, fontWeight: 700 }}>{error}</div>}
+        <div style={{ color: C.faint, fontSize: 12, lineHeight: 1.45, marginTop: 9 }}>For a fair comparison: use the same lighting, distance, pose and time of day. One photo per view each week is enough.</div>
+      </div>
+
+      {viewPhotos.length >= 2 && (
+        <div style={{ background: C.card, border: `2px solid ${C.border}`, borderRadius: 15, padding: 14, marginTop: 10 }}>
+          <div className="mono" style={{ color: C.text, fontSize: 12, fontWeight: 900, letterSpacing: .7 }}>COMPARE {view.toUpperCase()} PHOTOS</div>
+          <div className="photo-grid" style={{ marginTop: 11 }}>
+            <div>
+              <label className="mono" style={{ display: "block", color: C.faint, fontSize: 10, fontWeight: 800, marginBottom: 5 }}>BEFORE</label>
+              <select className="photo-select" value={leftId} onChange={(e) => setLeftId(e.target.value)}>
+                {viewPhotos.map((photo) => <option key={photo.id} value={photo.id}>{niceDate(photo.date)}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="mono" style={{ display: "block", color: C.faint, fontSize: 10, fontWeight: 800, marginBottom: 5 }}>AFTER</label>
+              <select className="photo-select" value={rightId} onChange={(e) => setRightId(e.target.value)}>
+                {viewPhotos.map((photo) => <option key={photo.id} value={photo.id}>{niceDate(photo.date)}</option>)}
+              </select>
+            </div>
+          </div>
+          <div className="photo-grid" style={{ marginTop: 9 }}>
+            {[left, right].map((photo, index) => photo ? (
+              <button key={`${index}-${photo.id}`} onClick={() => setViewer(photo)}
+                style={{ padding: 0, border: `2px solid ${index ? C.green : C.ice}`, borderRadius: 12, overflow: "hidden", background: "#000", minHeight: 220 }}>
+                <img src={photo.dataUrl} alt={`${index ? "After" : "Before"} ${view} progress from ${photo.date}`} style={{ display: "block", width: "100%", height: 250, objectFit: "contain" }} />
+              </button>
+            ) : <div key={index} />)}
+          </div>
+        </div>
+      )}
+
+      <div style={{ marginTop: 12 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+          <div className="mono" style={{ color: C.text, fontSize: 12, fontWeight: 900 }}>{view.toUpperCase()} HISTORY</div>
+          <div className="mono" style={{ color: C.faint, fontSize: 11 }}>{viewPhotos.length} PHOTO{viewPhotos.length === 1 ? "" : "S"}</div>
+        </div>
+        {viewPhotos.length === 0 ? (
+          <div style={{ border: `1px dashed ${C.border}`, background: C.card, borderRadius: 13, padding: "22px 14px", color: C.dim, fontSize: 13, lineHeight: 1.5, textAlign: "center" }}>No {view} photos yet. Add your first private progress photo above.</div>
+        ) : (
+          <div className="photo-grid">
+            {newestFirst.map((photo) => (
+              <div key={photo.id} data-testid={`progress-photo-${photo.id}`} style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 13, overflow: "hidden" }}>
+                <button onClick={() => setViewer(photo)} style={{ display: "block", width: "100%", minHeight: 210, padding: 0, border: "none", borderRadius: 0, background: "#000" }}>
+                  <img src={photo.thumbUrl || photo.dataUrl} alt={`${photo.view} progress from ${photo.date}`} loading="lazy" style={{ display: "block", width: "100%", height: 230, objectFit: "contain" }} />
+                </button>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6, padding: "9px 10px" }}>
+                  <div>
+                    <div style={{ color: C.text, fontSize: 12.5, fontWeight: 800 }}>{niceDate(photo.date)}</div>
+                    <div className="mono" style={{ color: C.faint, fontSize: 9.5, marginTop: 2 }}>{photo.view.toUpperCase()}</div>
+                  </div>
+                  <button onClick={() => onRemove(photo)} aria-label={`Delete ${photo.view} photo from ${photo.date}`}
+                    style={{ minWidth: 44, minHeight: 44, borderRadius: 10, border: `1px solid ${C.hot}88`, background: `${C.hot}10`, color: C.hot, fontWeight: 900, fontSize: 17 }}>×</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+        {viewPhotos.length === 1 && <div style={{ color: C.dim, fontSize: 12.5, lineHeight: 1.45, marginTop: 9 }}>Add one more {view} photo on a later date to unlock side-by-side comparison.</div>}
+      </div>
+
+      <div style={{ color: C.faint, fontSize: 11.5, lineHeight: 1.45, marginTop: 12 }}>
+        Removing browser site data or uninstalling the app can delete these private copies. Keep originals in Samsung Gallery or Secure Folder as your backup.
+      </div>
+
+      {viewer && (
+        <div role="dialog" aria-modal="true" aria-label="Progress photo viewer" onClick={() => setViewer(null)}
+          style={{ position: "fixed", inset: 0, zIndex: 80, background: "rgba(0,0,0,.94)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 14 }}>
+          <button onClick={() => setViewer(null)} aria-label="Close photo viewer"
+            style={{ position: "absolute", top: "max(14px, env(safe-area-inset-top))", right: 14, width: 52, height: 52, borderRadius: 999, border: `2px solid ${C.text}`, background: C.bg, color: C.text, fontSize: 25, fontWeight: 900 }}>×</button>
+          <img src={viewer.dataUrl} alt={`${viewer.view} progress from ${viewer.date}`} onClick={(e) => e.stopPropagation()}
+            style={{ maxWidth: "min(100%, 520px)", maxHeight: "82dvh", objectFit: "contain", borderRadius: 12 }} />
+          <div className="mono" style={{ color: C.text, fontSize: 12, fontWeight: 800, marginTop: 10 }}>{viewer.view.toUpperCase()} · {niceDate(viewer.date)}</div>
+        </div>
+      )}
     </div>
   );
 }
