@@ -1,4 +1,4 @@
-const CACHE = "vtaper-v2";
+const CACHE = "vtaper-v3-mobile-coach";
 const CORE = [
   "./",
   "./index.html",
