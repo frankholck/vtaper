@@ -1,4 +1,4 @@
-# V-Taper Coach — install + Garmin morning sync
+# V-Taper Coach — install + one-tap Garmin sync
 
 ## 1. Put the app online (GitHub Pages)
 1. github.com -> New repository -> name it `vtaper` -> Create.
@@ -21,8 +21,18 @@ Open the URL in Chrome -> menu -> "Add to Home screen" -> Install.
 3. It writes garmin.json to the repo. The app fetches it on launch and
    shows the readiness card: sleep score, hours, HRV vs 7-day baseline,
    resting HR, body battery, plus a GREEN / AMBER / RED verdict.
-4. Schedule: 05:45 and 06:30 Dubai time daily, before the fasted session.
-   Scale weight is auto-logged into the app's body log.
+4. There is no fixed schedule. In the Coach app, tap **Collect Garmin now**.
+   The Cloudflare relay starts the GitHub workflow and Coach waits for the new
+   data automatically. Scale weight is auto-logged into the body log.
+
+## 4. Private Cloudflare relay
+The public app never contains a GitHub token. `garmin-relay/` is deployed as the
+Cloudflare Worker `vtaper-garmin-relay`. Add one encrypted Worker secret named
+`GITHUB_TOKEN`. Use a fine-grained GitHub token limited to the `frankholck/vtaper`
+repository with **Actions: Read and write** and no broader repository access.
+
+The relay only accepts the Coach website origin and limits repeat starts for two
+minutes. Do not commit the token or paste it into `index.html`.
 
 ## Private visual progress photos
 - Open **Progress -> Visual Progress** to take or choose front, side, and back photos.

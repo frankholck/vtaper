@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """
 Pulls this morning's Garmin stats and writes garmin.json for the V-Taper Coach app.
-Runs in GitHub Actions on a schedule. Credentials come from repo secrets.
+Runs in GitHub Actions when requested. Credentials come from repo secrets.
 Every field is fetched defensively — partial data still produces a valid file.
 """
 import json
 import os
 import sys
-from datetime import date
+from datetime import date, datetime, timezone
 
 from garminconnect import Garmin
 
@@ -15,7 +15,7 @@ EMAIL = os.environ["GARMIN_EMAIL"]
 PASSWORD = os.environ["GARMIN_PASSWORD"]
 
 today = date.today().isoformat()
-out = {"date": today}
+out = {"date": today, "_synced_at": datetime.now(timezone.utc).isoformat()}
 
 
 def safe(fn, *args):
