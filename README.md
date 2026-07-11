@@ -21,8 +21,9 @@ Open the URL in Chrome -> menu -> "Add to Home screen" -> Install.
 3. It writes garmin.json to the repo. The app fetches it on launch and
    shows the readiness card: sleep score, hours, HRV vs 7-day baseline,
    resting HR, body battery, plus a GREEN / AMBER / RED verdict.
-4. Schedule: 08:00 Dubai local time daily (04:00 UTC).
-   Scale weight is auto-logged into the app's body log.
+4. There is no fixed schedule. In the Coach app, tap **Collect Garmin now**,
+   run the workflow on GitHub, then return to Coach. The app refreshes the new
+   data automatically. Scale weight is auto-logged into the body log.
 
 ## Private visual progress photos
 - Open **Progress -> Visual Progress** to take or choose front, side, and back photos.

@@ -295,18 +295,35 @@ function VTaperCoach() {
   const [timer, setTimer] = useState(null);
   const [toast, setToast] = useState(null);
   const [garmin, setGarmin] = useState(null);
+  const [garminLoading, setGarminLoading] = useState(false);
+  const [garminError, setGarminError] = useState(null);
   const [photos, setPhotos] = useState([]);
   const [photoBusy, setPhotoBusy] = useState(false);
   const [photoError, setPhotoError] = useState(null);
   const saveT = useRef(null);
   const timerRef = useRef(null);
 
-  /* fetch this morning's Garmin snapshot (written by the GitHub Action) */
-  useEffect(() => {
-    fetch("garmin.json", { cache: "no-store" })
-      .then((r) => (r.ok ? r.json() : null))
+  /* Fetch the latest Garmin snapshot on launch and after returning from the manual workflow. */
+  const loadGarmin = () => {
+    setGarminLoading(true);
+    setGarminError(null);
+    return fetch(`garmin.json?refresh=${Date.now()}`, { cache: "no-store" })
+      .then((r) => {
+        if (!r.ok) throw new Error("Garmin data could not be loaded.");
+        return r.json();
+      })
       .then((g) => g && setGarmin(g))
-      .catch(() => {});
+      .catch((e) => setGarminError(e.message || "Garmin data could not be loaded."))
+      .finally(() => setGarminLoading(false));
+  };
+
+  useEffect(() => {
+    loadGarmin();
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === "visible") loadGarmin();
+    };
+    document.addEventListener("visibilitychange", refreshWhenVisible);
+    return () => document.removeEventListener("visibilitychange", refreshWhenVisible);
   }, []);
 
   /* Body photos are loaded from this device only, never from the network. */
@@ -548,7 +565,7 @@ function VTaperCoach() {
 
       {tab === "today" && (
         <div className="screen-pad" style={{ paddingTop: 16, paddingBottom: 18 }}>
-          <GarminCard garmin={garmin} tk={tk} checkin={checkin} onCheckin={setCheckin} />
+          <GarminCard garmin={garmin} tk={tk} checkin={checkin} onCheckin={setCheckin} onRefresh={loadGarmin} refreshing={garminLoading} error={garminError} />
           <div
             onClick={() => { setSelDay(todayNum); setTab("train"); }}
             style={{
@@ -932,7 +949,7 @@ function TrainingDose({ r, compact = false }) {
   );
 }
 
-function GarminCard({ garmin, tk, checkin, onCheckin }) {
+function GarminCard({ garmin, tk, checkin, onCheckin, onRefresh, refreshing, error }) {
   const stale = !!(garmin && garmin.date !== tk);
   const r = readiness(stale ? null : garmin, checkin);
   const M = ({ l, v, u }) => v == null ? null : (
@@ -943,6 +960,21 @@ function GarminCard({ garmin, tk, checkin, onCheckin }) {
   );
   return (
     <>
+      <div data-testid="manual-garmin-sync" style={{ background: `${C.amber}12`, border: `2px solid ${C.amber}`, borderRadius: 16, padding: 14, marginBottom: 12 }}>
+        <div className="mono" style={{ fontSize: 12, color: C.amber, fontWeight: 900, letterSpacing: .7 }}>GARMIN — MANUAL WHEN YOU WAKE</div>
+        <div style={{ color: C.text, fontSize: 14, lineHeight: 1.45, marginTop: 6, fontWeight: 700 }}>No fixed upload time. Collect fresh sleep and recovery data wherever you are.</div>
+        <a data-testid="collect-garmin-now" href="https://github.com/frankholck/vtaper/actions/workflows/garmin-sync.yml" target="_blank" rel="noreferrer"
+          style={{ display: "flex", alignItems: "center", justifyContent: "center", width: "100%", minHeight: 58, borderRadius: 12, marginTop: 11, background: C.amber, color: "#111", textDecoration: "none", fontSize: 15, fontWeight: 900 }}>
+          COLLECT GARMIN NOW ↗
+        </a>
+        <div style={{ color: C.dim, fontSize: 12.5, lineHeight: 1.45, marginTop: 9 }}>GitHub opens securely. Tap <b style={{ color: C.text }}>Run workflow</b>, then return to Coach. Your data refreshes automatically.</div>
+        <button data-testid="refresh-garmin-data" onClick={onRefresh} disabled={refreshing}
+          style={{ width: "100%", minHeight: 48, borderRadius: 11, marginTop: 9, background: C.surface, color: refreshing ? C.faint : C.ice, border: `2px solid ${C.border}`, fontSize: 12.5, fontWeight: 900 }}>
+          {refreshing ? "CHECKING FOR NEW DATA…" : "REFRESH DATA NOW"}
+        </button>
+        {error && <div role="alert" style={{ color: C.hot, fontSize: 12.5, lineHeight: 1.4, marginTop: 8, fontWeight: 700 }}>{error}</div>}
+      </div>
+
       <div style={{ background: C.card, border: `2px solid ${C.border}`, borderRadius: 16, padding: 14, marginBottom: 12 }}>
         <div className="mono" style={{ fontSize: 12, color: C.text, fontWeight: 900, letterSpacing: .6 }}>HOW DO YOU FEEL?</div>
         <div style={{ color: C.dim, fontSize: 13, lineHeight: 1.4, marginTop: 4 }}>Choose WIRED / DRAINED whenever in doubt. It automatically reduces today's dose.</div>

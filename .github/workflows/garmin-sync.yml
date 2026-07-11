@@ -1,9 +1,6 @@
 name: Garmin morning sync
 
 on:
-  schedule:
-    # 04:00 UTC = 08:00 Dubai local time (UTC+4, no daylight saving time).
-    - cron: "0 4 * * *"
   workflow_dispatch: {}
 
 permissions:

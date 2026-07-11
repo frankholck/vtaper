@@ -1,4 +1,4 @@
-const CACHE = "vtaper-v4-private-photos";
+const CACHE = "vtaper-v5-manual-garmin";
 const CORE = [
   "./",
   "./index.html",
