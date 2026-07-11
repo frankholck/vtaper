@@ -1,4 +1,4 @@
-const CACHE = "vtaper-v5-manual-garmin";
+const CACHE = "vtaper-v6-one-tap-garmin";
 const CORE = [
   "./",
   "./index.html",

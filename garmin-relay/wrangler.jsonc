@@ -1,0 +1,11 @@
+{
+  "$schema": "../node_modules/wrangler/config-schema.json",
+  "name": "vtaper-garmin-relay",
+  "main": "src/index.js",
+  "compatibility_date": "2026-07-11",
+  "workers_dev": true,
+  "preview_urls": false,
+  "observability": {
+    "enabled": true
+  }
+}
