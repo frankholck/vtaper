@@ -1,10 +1,6 @@
 {
-  "date": "2026-07-10",
-  "sleep_score": 84,
-  "sleep_hours": 7.9,
-  "hrv": 50,
-  "hrv_baseline": 54,
-  "resting_hr": 52,
-  "body_battery": 72,
-  "stress": 21
+  "date": "2026-07-11",
+  "resting_hr": 54,
+  "body_battery": 14,
+  "stress": 33
 }
