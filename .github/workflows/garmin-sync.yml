@@ -1,13 +1,18 @@
+# Branch-only variant of the sync workflow: exports a date range to a
+# short-lived artifact. Not for merging.
 name: Garmin morning sync
 
 on:
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      start:
+        required: true
+      end:
+        required: true
 
 permissions:
   contents: write
 
-# One run at a time: two runs refreshing the Garmin session together could
-# invalidate each other's refresh token.
 concurrency:
   group: garmin-sync
   cancel-in-progress: false
@@ -16,7 +21,13 @@ jobs:
   sync:
     runs-on: ubuntu-latest
     steps:
+      # main in the workspace root, so a refreshed session is saved back to main
       - uses: actions/checkout@v5
+        with:
+          ref: main
+      - uses: actions/checkout@v5
+        with:
+          path: _export
 
       - uses: actions/setup-python@v6
         with:
@@ -25,21 +36,26 @@ jobs:
       - name: Install garminconnect
         run: pip install "garminconnect>=0.3.17" cryptography
 
-      - name: Fetch Garmin data
+      - name: Export Garmin range
         env:
-          # Saved Garmin session, created once with garmin-sync/garmin_login.py
           GARMIN_TOKENS: ${{ secrets.GARMIN_TOKENS }}
-          # Last-resort fallback only; Garmin blocks password logins from GitHub
-          GARMIN_EMAIL: ${{ secrets.GARMIN_EMAIL }}
-          GARMIN_PASSWORD: ${{ secrets.GARMIN_PASSWORD }}
-        run: python garmin-sync/fetch_garmin.py
+          PYTHONPATH: garmin-sync
+        run: >
+          python _export/garmin-sync/export_range.py
+          --start "${{ inputs.start }}" --end "${{ inputs.end }}"
+          --out "$RUNNER_TEMP/garmin_export.json"
 
-      - name: Commit garmin.json if changed
+      - uses: actions/upload-artifact@v4
+        with:
+          name: garmin-export
+          path: ${{ runner.temp }}/garmin_export.json
+          retention-days: 1
+
+      - name: Save refreshed Garmin session to main if it changed
         run: |
           git config user.name "garmin-sync"
           git config user.email "actions@github.com"
-          git add garmin.json
           if [ -f garmin-sync/session.enc ]; then git add garmin-sync/session.enc; fi
           git diff --cached --quiet && echo "No change" && exit 0
-          git commit -m "Garmin sync $(date -u +%F)"
+          git commit -m "Garmin session refresh $(date -u +%F)"
           git push
