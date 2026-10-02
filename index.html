@@ -131,8 +131,6 @@ const C = {
   amber: "#FFC247", ice: "#79C4FF", hot: "#FF6B78", green: "#63E6AE",
 };
 
-const DAY_NAMES = ["", "MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"];
-
 const PROGRAM = {
   1: {
     title: "PUSH", sub: "Shoulders First", sets: 19, mins: "50\u201355", color: C.amber,
@@ -165,8 +163,6 @@ const PROGRAM = {
       { name: "Vacuum Practice", s: 3, reps: "30s hold", score: 10, tempo: "exhale \u00b7 draw in \u00b7 hold", yt: "RrSm1skOC7s", cue: "Cinches the waist 1\u20132cm independent of fat loss. On top of the daily 6 sets." },
     ],
   },
-  4: { title: "REST", sub: "Walk + Sauna", rest: true, color: C.faint, ex: [],
-    note: "Full rest from resistance training. Evening walk 40\u201345 min, sauna 15\u201320 min. Recovery before the priority day." },
   5: {
     title: "SHOULDER CAP + BACK", sub: "\u2b50 The Priority Day", sets: 22, mins: "55\u201360", color: C.amber, priority: true,
     ex: [
@@ -189,9 +185,13 @@ const PROGRAM = {
       { name: "Hammer Curls", s: 3, reps: "10\u201312", score: 7, tempo: "2s up \u00b7 2s down", cue: "Brachialis \u2014 pushes the arm wider from the front." },
     ],
   },
-  7: { title: "REST", sub: "Walk + Sauna", rest: true, color: C.faint, ex: [],
-    note: "Full recovery. Evening walk 40\u201345 min, sauna 15\u201320 min. Big week done." },
 };
+
+/* Workouts are chosen freely; the numbers are the original weekday slots and stay as the
+   log identifiers so sessions already saved on the phone keep working. */
+const WORKOUTS = [1, 2, 3, 5, 6];
+const SHORT = { 1: "PUSH", 2: "PULL", 3: "LEGS", 5: "CAPS", 6: "ARMS" };
+const REST_NOTE = "Rest day: evening walk 40\u201345 min and sauna 15\u201320 min. No resistance training.";
 
 const FORM_GUIDES = {
   "Seated DB Overhead Press": ["Sit tall with back support, feet planted and ribs stacked over the pelvis.", "Start the dumbbells just outside shoulder width; press up and slightly inward without clanging them together.", "Lower under control until elbows are just below shoulder height. Avoid leaning back or shrugging."],
@@ -235,7 +235,44 @@ const todayKey = () => {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 };
-const jsDayToProgram = (d) => (d === 0 ? 7 : d);
+const dateKey = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+const dateKeyOffset = (days) => { const d = new Date(); d.setDate(d.getDate() + days); return dateKey(d); };
+const weekStartKey = () => dateKeyOffset(-((new Date().getDay() + 6) % 7));
+const WD = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const MO = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const niceDay = (k) => { const d = new Date(`${k}T12:00:00`); return `${WD[d.getDay()]} ${d.getDate()} ${MO[d.getMonth()]}`; };
+const daysAgo = (k) => {
+  const n = Math.round((new Date(`${todayKey()}T12:00:00`) - new Date(`${k}T12:00:00`)) / 864e5);
+  return n <= 0 ? "today" : n === 1 ? "yesterday" : `${n} days ago`;
+};
+
+/* Session logs are keyed by date. A second workout on the same date gets the key "date#workout",
+   so nothing already stored is ever overwritten. */
+const logDate = (k) => k.slice(0, 10);
+const findLogKey = (logs, date, day) => (logs[date] && logs[date].day === day ? date : logs[`${date}#${day}`] ? `${date}#${day}` : null);
+const writeLogKey = (logs, date, day) => findLogKey(logs, date, day) || (logs[date] ? `${date}#${day}` : date);
+const countDone = (log) => {
+  let n = 0;
+  Object.values((log && log.ex) || {}).forEach((arr) => (arr || []).forEach((s) => s && s.done && n++));
+  return n;
+};
+
+/* Double progression: fill the rep range at one weight, then move up a step. */
+function nextTarget(ex, sets) {
+  const m = /^(\d+)\u2013(\d+)$/.exec(ex.reps);
+  const logged = (sets || []).filter((s) => s && !isNaN(parseFloat(s.r)));
+  if (!m || !logged.length) return null;
+  const low = +m[1], top = +m[2];
+  const reps = logged.map((s) => parseFloat(s.r));
+  const ws = logged.map((s) => parseFloat(s.w)).filter((w) => !isNaN(w));
+  const same = ws.length && Math.min(...ws) === Math.max(...ws);
+  const load = !ws.length ? "the same load" : same ? `${ws[0]} kg` : "the same weights";
+  if (logged.length >= Math.min(2, ex.s) && reps.every((r) => r >= top)) {
+    return { up: true, text: `Every set reached ${top} reps. Go up one step${same ? ` from ${ws[0]} kg` : " in weight"} and build back up from ${low} reps.` };
+  }
+  if (reps.some((r) => r < low)) return { up: false, text: `Some sets fell under ${low} reps. Stay at ${load} until every set reaches ${low} or more.` };
+  return { up: false, text: `Keep ${load} and aim for ${top} reps on every set before going up.` };
+}
 
 function readiness(g, selfStatus = "normal") {
   if (!g && selfStatus !== "wired") return null;
@@ -291,8 +328,9 @@ function readiness(g, selfStatus = "normal") {
 function VTaperCoach() {
   const [tab, setTab] = useState("today");
   const [state, setState] = useState(null);
-  const [selDay, setSelDay] = useState(jsDayToProgram(new Date().getDay()));
+  const [selDay, setSelDay] = useState(null);
   const [openEx, setOpenEx] = useState(null);
+  const [openHist, setOpenHist] = useState(null);
   const [timer, setTimer] = useState(null);
   const [toast, setToast] = useState(null);
   const [garmin, setGarmin] = useState(null);
@@ -445,35 +483,72 @@ function VTaperCoach() {
   if (!state) {
     return (
       <div style={{ minHeight: "100vh", background: C.bg, display: "flex", alignItems: "center", justifyContent: "center", color: C.dim, fontFamily: "system-ui" }}>
-        Loading your program\u2026
+        Loading your program…
       </div>
     );
   }
 
   const phase = week <= 4 ? "FOUNDATION" : "INTENSIFICATION";
   const tk = todayKey();
-  const todayNum = jsDayToProgram(new Date().getDay());
   const effSets = (ex) => ex.s + (week >= 5 && ex.lat ? 1 : 0);
+  const plannedSets = (d) => PROGRAM[d].ex.reduce((a, e) => a + effSets(e), 0);
+
+  /* Flexible schedule: what was done when, what is still open this week, what to do next. */
+  const logKeys = Object.keys(state.logs).filter((k) => state.logs[k] && PROGRAM[state.logs[k].day]);
+  const wkStart = weekStartKey();
+  const lastDone = {}, weekDone = {}, weekDate = {}, todayDone = {};
+  const trainedDates = new Set();
+  logKeys.forEach((k) => {
+    const l = state.logs[k], d = logDate(k), n = countDone(l);
+    if (!n || d > tk) return;
+    trainedDates.add(d);
+    if (!lastDone[l.day] || d > lastDone[l.day]) lastDone[l.day] = d;
+    if (d >= wkStart && n >= (weekDone[l.day] || 0)) { weekDone[l.day] = n; weekDate[l.day] = d; }
+    if (d === tk) todayDone[l.day] = n;
+  });
+  const isComplete = (d, n) => n >= Math.ceil(plannedSets(d) * 0.7);
+  const suggested = WORKOUTS.reduce((best, d) => ((lastDone[d] || "") < (lastDone[best] || "") ? d : best), WORKOUTS[0]);
+  const openToday = WORKOUTS.find((d) => todayDone[d] && !isComplete(d, todayDone[d]));
+  const finishedToday = WORKOUTS.find((d) => todayDone[d]);
+  const defaultDay = openToday || finishedToday || suggested;
+  const activeDay = selDay || defaultDay;
+  const weekCount = WORKOUTS.filter((d) => weekDone[d] && isComplete(d, weekDone[d])).length;
+  let streak = 0;
+  while (streak < 14 && trainedDates.has(dateKeyOffset(-(streak + 1)))) streak++;
+
+  /* Most recent earlier session of this workout in which this exercise was actually logged. */
+  const lastEntry = (d, exIdx) => {
+    let best = null;
+    logKeys.forEach((k) => {
+      const l = state.logs[k], date = logDate(k);
+      if (l.day !== d || date >= tk) return;
+      const sets = (l.ex && l.ex[exIdx]) || [];
+      if (!sets.some((s) => s && (s.w || s.r))) return;
+      if (!best || date > best.date) best = { date, sets };
+    });
+    return best;
+  };
 
   const setField = (exIdx, setIdx, field, val) => {
     const logs = { ...state.logs };
-    const cur = logs[tk] && logs[tk].day === selDay ? { ...logs[tk], ex: { ...logs[tk].ex } } : { day: selDay, ex: {} };
+    const key = writeLogKey(logs, tk, activeDay);
+    const cur = logs[key] ? { ...logs[key], ex: { ...logs[key].ex } } : { day: activeDay, ex: {} };
     const arr = [...(cur.ex[exIdx] || [])];
     while (arr.length <= setIdx) arr.push({ w: "", r: "", done: false });
     arr[setIdx] = { ...arr[setIdx], [field]: val };
     cur.ex[exIdx] = arr;
-    logs[tk] = cur;
+    logs[key] = cur;
     persist({ ...state, logs });
   };
 
   const toggleDone = (exIdx, setIdx) => {
-    const cur = state.logs[tk] && state.logs[tk].day === selDay ? state.logs[tk] : { day: selDay, ex: {} };
+    const cur = state.logs[findLogKey(state.logs, tk, activeDay)] || { day: activeDay, ex: {} };
     const arr = cur.ex[exIdx] || [];
     const wasDone = arr[setIdx] && arr[setIdx].done;
     setField(exIdx, setIdx, "done", !wasDone);
     if (!wasDone) {
       setTimer(state.restSec);
-      const exercise = PROGRAM[selDay].ex[exIdx];
+      const exercise = PROGRAM[activeDay].ex[exIdx];
       const nSets = effSets(exercise);
       const finishing = [...Array(nSets)].every((_, i) => i === setIdx || (arr[i] && arr[i].done));
       if (finishing) {
@@ -484,19 +559,6 @@ function VTaperCoach() {
     }
   };
 
-  const prevKeys = Object.keys(state.logs)
-    .filter((k) => k < tk && state.logs[k].day === selDay)
-    .sort()
-    .reverse();
-  const prevLog = prevKeys.length ? state.logs[prevKeys[0]] : null;
-
-  const dayDone = (dateKey) => {
-    const log = state.logs[dateKey];
-    if (!log) return 0;
-    let n = 0;
-    Object.values(log.ex).forEach((arr) => arr.forEach((s) => s.done && n++));
-    return n;
-  };
 
   const toggleHabit = (id) => {
     const habits = { ...state.habits, [tk]: { ...(state.habits[tk] || {}), [id]: !(state.habits[tk] && state.habits[tk][id]) } };
@@ -510,13 +572,14 @@ function VTaperCoach() {
 
   const copyPrevious = (exIdx, nSets, previous) => {
     const logs = { ...state.logs };
-    const cur = logs[tk] && logs[tk].day === selDay ? { ...logs[tk], ex: { ...logs[tk].ex } } : { day: selDay, ex: {} };
+    const key = writeLogKey(logs, tk, activeDay);
+    const cur = logs[key] ? { ...logs[key], ex: { ...logs[key].ex } } : { day: activeDay, ex: {} };
     cur.ex[exIdx] = [...Array(nSets)].map((_, si) => ({
       w: previous[si] && previous[si].w != null ? previous[si].w : "",
       r: previous[si] && previous[si].r != null ? previous[si].r : "",
       done: false,
     }));
-    logs[tk] = cur;
+    logs[key] = cur;
     persist({ ...state, logs });
     setToast("Previous weights copied");
     setTimeout(() => setToast(null), 1800);
@@ -573,11 +636,52 @@ function VTaperCoach() {
   };
 
   const lastBody = state.body.length ? state.body[state.body.length - 1] : null;
-  const day = PROGRAM[selDay];
-  const todayProg = PROGRAM[todayNum];
+  const day = PROGRAM[activeDay];
+  const todayLog = state.logs[findLogKey(state.logs, tk, activeDay)] || null;
+  const hero = PROGRAM[defaultDay];
+  const heroDone = todayDone[defaultDay] || 0;
+  const heroLabel = heroDone ? (isComplete(defaultDay, heroDone) ? "DONE TODAY" : "IN PROGRESS TODAY") : "NEXT UP";
+  const openWorkout = (d) => { setSelDay(d); setOpenEx(null); setTab("train"); window.scrollTo(0, 0); };
+  const workoutStatus = (d) => {
+    const total = plannedSets(d);
+    if (todayDone[d]) return { color: C.green, text: `${isComplete(d, todayDone[d]) ? "\u2713 DONE TODAY" : "IN PROGRESS"} \u00b7 ${todayDone[d]}/${total} SETS` };
+    if (weekDone[d] && isComplete(d, weekDone[d])) return { color: C.green, text: `\u2713 DONE ${niceDay(weekDate[d]).toUpperCase()}` };
+    if (weekDone[d]) return { color: C.amber, text: `PARTIAL ${niceDay(weekDate[d]).toUpperCase()} \u00b7 ${weekDone[d]}/${total} SETS` };
+    return { color: C.hot, text: lastDone[d] ? `OPEN THIS WEEK \u00b7 LAST ${daysAgo(lastDone[d]).toUpperCase()}` : "OPEN THIS WEEK \u00b7 NOT LOGGED YET" };
+  };
   const checkin = (state.checkins && state.checkins[tk]) || "normal";
   const currentGarmin = garmin && garmin.date === tk ? garmin : null;
   const recovery = readiness(currentGarmin, checkin);
+
+  const trainedToday = Object.keys(todayDone).length > 0;
+  const restHint = trainedToday ? null
+    : weekCount === WORKOUTS.length ? `All five workouts are done this week. ${REST_NOTE}`
+    : streak >= 3 ? `You have trained ${streak} days in a row. The plan is three days on, then a rest day. ${REST_NOTE}`
+    : null;
+
+  const workoutRow = (d) => {
+    const p = PROGRAM[d];
+    const st = workoutStatus(d);
+    const next = d === suggested && !trainedToday;
+    return (
+      <button key={d} data-testid={`workout-row-${d}`} onClick={() => openWorkout(d)}
+        style={{
+          display: "flex", alignItems: "center", gap: 12, width: "100%", textAlign: "left",
+          background: next ? `linear-gradient(90deg, ${C.card}, ${p.color}14)` : C.card,
+          border: `1px solid ${next ? C.amber : C.border}`,
+          borderRadius: 12, padding: "12px 14px", marginBottom: 8, color: C.text,
+        }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 15, fontWeight: 800 }}>{p.title}{p.priority ? " ⭐" : ""}</div>
+          <div className="mono" style={{ fontSize: 11, color: st.color, fontWeight: 800, marginTop: 4 }}>{st.text}</div>
+        </div>
+        <div style={{ textAlign: "right", flexShrink: 0 }}>
+          {next && <div className="mono" style={{ display: "inline-block", fontSize: 10, fontWeight: 900, color: "#111", background: C.amber, borderRadius: 999, padding: "4px 9px", marginBottom: 4 }}>NEXT UP</div>}
+          <div className="mono" style={{ fontSize: 11, color: C.dim }}>{plannedSets(d)} sets · {p.mins} min</div>
+        </div>
+      </button>
+    );
+  };
 
   return (
     <div className="app-shell" style={{ background: C.bg, color: C.text, fontFamily: "'Inter', system-ui, sans-serif", paddingBottom: 138 }}>
@@ -610,38 +714,46 @@ function VTaperCoach() {
         <div className="screen-pad" style={{ paddingTop: 16, paddingBottom: 18 }}>
           <GarminCard garmin={garmin} tk={tk} checkin={checkin} onCheckin={setCheckin} onCollect={collectGarmin} collecting={garminSyncing} syncStatus={garminSyncStatus} onRefresh={loadGarmin} refreshing={garminLoading} error={garminError} />
           <div
-            onClick={() => { setSelDay(todayNum); setTab("train"); }}
+            data-testid="next-workout"
+            onClick={() => openWorkout(defaultDay)}
             style={{
-              background: `linear-gradient(140deg, ${C.card} 55%, ${todayProg.color}18)`,
-              border: `1px solid ${todayProg.priority ? C.amber : C.border}`,
+              background: `linear-gradient(140deg, ${C.card} 55%, ${hero.color}18)`,
+              border: `1px solid ${hero.priority ? C.amber : C.border}`,
               borderRadius: 16, padding: 20, cursor: "pointer",
             }}
           >
-            <div className="mono" style={{ fontSize: 11, color: C.dim }}>
-              TODAY · {DAY_NAMES[todayNum]}{todayProg.priority ? " \u00b7 \u2b50 PRIORITY DAY" : ""}
+            <div className="mono" style={{ fontSize: 11, color: heroDone ? C.green : C.dim, fontWeight: 800 }}>
+              {heroLabel}{hero.priority ? " · ⭐ PRIORITY" : ""}{!heroDone && lastDone[defaultDay] ? ` · LAST DONE ${daysAgo(lastDone[defaultDay]).toUpperCase()}` : ""}
             </div>
-            <div className="anton" style={{ fontSize: 34, marginTop: 6, color: todayProg.rest ? C.dim : C.text, lineHeight: 1.05 }}>
-              {todayProg.title}
+            <div className="anton" style={{ fontSize: 34, marginTop: 6, color: C.text, lineHeight: 1.05 }}>
+              {hero.title}
             </div>
-            <div style={{ fontSize: 14, color: C.dim, marginTop: 4 }}>{todayProg.sub}</div>
-            {!todayProg.rest && (
-              <div style={{ display: "flex", gap: 14, marginTop: 14 }}>
-                <Stat label="SETS" value={todayProg.ex.reduce((a, e) => a + effSets(e), 0)} />
-                <Stat label="MIN" value={todayProg.mins} />
-                <Stat label="DONE" value={dayDone(tk)} color={dayDone(tk) > 0 ? C.green : undefined} />
-                <div style={{ marginLeft: "auto", alignSelf: "center", background: C.amber, color: "#111", fontWeight: 700, fontSize: 13, padding: "10px 16px", borderRadius: 10 }}>
-                  TRAIN →
-                </div>
+            <div style={{ fontSize: 14, color: C.dim, marginTop: 4 }}>{hero.sub}</div>
+            <div style={{ display: "flex", gap: 14, marginTop: 14 }}>
+              <Stat label="SETS" value={plannedSets(defaultDay)} />
+              <Stat label="MIN" value={hero.mins} />
+              <Stat label="DONE" value={heroDone} color={heroDone > 0 ? C.green : undefined} />
+              <div style={{ marginLeft: "auto", alignSelf: "center", background: C.amber, color: "#111", fontWeight: 700, fontSize: 13, padding: "10px 16px", borderRadius: 10 }}>
+                {heroDone ? (isComplete(defaultDay, heroDone) ? "REVIEW →" : "CONTINUE →") : "TRAIN →"}
               </div>
-            )}
-            {todayProg.rest && <div style={{ marginTop: 12, fontSize: 13, color: C.dim, lineHeight: 1.5 }}>{todayProg.note}</div>}
+            </div>
           </div>
 
-          {week >= 5 && !todayProg.rest && (
+          {restHint && (
+            <div data-testid="rest-hint" style={{ marginTop: 12, background: `${C.ice}12`, border: `1px solid ${C.ice}66`, borderRadius: 12, padding: "10px 14px", fontSize: 13, lineHeight: 1.5, color: C.text }}>
+              <b style={{ color: C.ice }}>REST?</b> {restHint}
+            </div>
+          )}
+
+          {week >= 5 && (
             <div style={{ marginTop: 12, background: `${C.hot}14`, border: `1px solid ${C.hot}44`, borderRadius: 12, padding: "10px 14px", fontSize: 12.5, color: C.text }}>
               <b style={{ color: C.hot }}>WEEK 5–8:</b> Readiness overrides intensification. Never exceed today's RPE shown above; skip rest-pause and drop sets unless GREEN.
             </div>
           )}
+
+          <SectionTitle>CHOOSE YOUR WORKOUT · {weekCount}/{WORKOUTS.length} DONE THIS WEEK</SectionTitle>
+          <div style={{ color: C.dim, fontSize: 13, lineHeight: 1.45, margin: "-4px 2px 10px" }}>Any workout, any day. The ones marked open are still owed this week.</div>
+          {WORKOUTS.map(workoutRow)}
 
           <SectionTitle>NON-NEGOTIABLES</SectionTitle>
           {HABITS.map((h) => {
@@ -673,45 +785,47 @@ function VTaperCoach() {
 
       {tab === "train" && (
         <div className="screen-pad" style={{ paddingTop: 14 }}>
-          <div className="scroll-days" style={{ display: "flex", gap: 7, overflowX: "auto", paddingBottom: 12 }}>
-            {[1, 2, 3, 4, 5, 6, 7].map((d) => {
+          <div style={{ display: "grid", gridTemplateColumns: `repeat(${WORKOUTS.length}, minmax(0, 1fr))`, gap: 6, paddingBottom: 12 }}>
+            {WORKOUTS.map((d) => {
               const p = PROGRAM[d];
-              const active = d === selDay;
+              const active = d === activeDay;
+              const doneWk = !!(weekDone[d] && isComplete(d, weekDone[d]));
+              const mark = todayDone[d] ? "TODAY" : doneWk ? "✓ DONE" : weekDone[d] ? "PARTIAL" : "OPEN";
               return (
-                <button key={d} onClick={() => { setSelDay(d); setOpenEx(null); }}
+                <button key={d} data-testid={`pick-workout-${d}`} aria-pressed={active} aria-label={`${p.title}, ${mark.toLowerCase()}`}
+                  onClick={() => { setSelDay(d); setOpenEx(null); }}
                   style={{
-                    flexShrink: 0, minWidth: 56, padding: "9px 7px", borderRadius: 11,
+                    minWidth: 0, padding: "8px 2px", borderRadius: 11,
                     background: active ? (p.priority ? C.amber : C.text) : C.card,
-                    color: active ? "#0C0E12" : d === todayNum ? C.amber : C.dim,
-                    border: `1px solid ${active ? "transparent" : C.border}`,
-                    fontWeight: 700, fontSize: 12,
+                    color: active ? "#0C0E12" : C.text,
+                    border: `1px solid ${active ? "transparent" : doneWk ? C.green + "88" : C.border}`,
+                    fontWeight: 800, fontSize: 12,
                   }}>
-                  {DAY_NAMES[d]}{p.priority ? " \u2b50" : ""}
+                  <div>{SHORT[d]}</div>
+                  <div className="mono" style={{ fontSize: 8.5, fontWeight: 800, marginTop: 3, color: active ? "#0C0E12" : doneWk || todayDone[d] ? C.green : weekDone[d] ? C.amber : C.faint }}>{mark}</div>
                 </button>
               );
             })}
           </div>
 
-          <div className="anton" style={{ fontSize: 28, lineHeight: 1.05 }}>{day.title}</div>
+          <div className="anton" style={{ fontSize: 28, lineHeight: 1.05 }}>{day.title}{day.priority ? " ⭐" : ""}</div>
           <div style={{ fontSize: 13, color: C.dim, marginBottom: 4 }}>{day.sub}</div>
-          {!day.rest && (
-            <div className="mono" style={{ fontSize: 11, color: C.faint, marginBottom: 14 }}>
-              {day.ex.reduce((a, e) => a + effSets(e), 0)} SETS · {day.mins} MIN{prevLog ? " \u00b7 LAST SESSION SHOWN IN GREY" : ""}
-            </div>
-          )}
+          <div className="mono" style={{ fontSize: 11, color: C.faint }}>
+            {plannedSets(activeDay)} SETS · {day.mins} MIN
+          </div>
+          <div className="mono" data-testid="workout-status" style={{ fontSize: 11, fontWeight: 800, color: workoutStatus(activeDay).color, margin: "4px 0 14px" }}>
+            {workoutStatus(activeDay).text}
+          </div>
 
-          {!day.rest && <TrainingDose r={recovery} compact />}
-
-          {day.rest && (
-            <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: 18, fontSize: 14, color: C.dim, lineHeight: 1.6, marginTop: 8 }}>
-              {day.note}
-            </div>
-          )}
+          <TrainingDose r={recovery} compact />
 
           {day.ex.map((ex, i) => {
             const nSets = effSets(ex);
-            const cur = (state.logs[tk] && state.logs[tk].day === selDay ? state.logs[tk].ex[i] : null) || [];
-            const prev = (prevLog && prevLog.ex && prevLog.ex[i]) || [];
+            const cur = (todayLog && todayLog.ex && todayLog.ex[i]) || [];
+            const last = lastEntry(activeDay, i);
+            const prev = last ? last.sets : [];
+            const target = last ? nextTarget(ex, last.sets) : null;
+            const hold = target && recovery && recovery.level !== "GREEN";
             const doneCount = cur.filter((s) => s && s.done).length;
             const open = openEx === i;
             const complete = doneCount >= nSets && nSets > 0;
@@ -748,6 +862,33 @@ function VTaperCoach() {
 
                 {showBody && (
                   <div style={{ padding: "0 12px 13px" }}>
+                    <div data-testid={`exercise-${i}-last`} style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 11, padding: "10px 11px", marginBottom: 10 }}>
+                      {last ? (
+                        <>
+                          <div className="mono" style={{ fontSize: 11, color: C.ice, fontWeight: 800, letterSpacing: .6 }}>
+                            LAST TIME · {niceDay(last.date).toUpperCase()} · {daysAgo(last.date).toUpperCase()}
+                          </div>
+                          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 7 }}>
+                            {last.sets.map((s, si) => (s && (s.w || s.r)) ? (
+                              <div key={si} className="mono" style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 8, padding: "5px 8px", fontSize: 14, fontWeight: 800, color: C.text }}>
+                                <span style={{ color: C.faint, fontSize: 10, marginRight: 5 }}>{si + 1}</span>
+                                {s.w ? `${s.w} kg × ${s.r || "?"}` : `${s.r} reps`}
+                              </div>
+                            ) : null)}
+                          </div>
+                          {target && (
+                            <div style={{ fontSize: 13, lineHeight: 1.45, marginTop: 8, color: C.text, fontWeight: 650 }}>
+                              <span className="mono" style={{ fontSize: 11, fontWeight: 900, color: hold ? C.amber : target.up ? C.green : C.amber, marginRight: 6 }}>
+                                {hold ? "TODAY" : target.up ? "GO UP" : "NEXT"}
+                              </span>
+                              {hold ? `Readiness is ${recovery.level}: stay at or below last time's weights.` : target.text}
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        <div style={{ fontSize: 12.5, color: C.faint, lineHeight: 1.45 }}>No earlier session logged for this exercise. Today's weights will show here next time.</div>
+                      )}
+                    </div>
                     <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 7, minHeight: 26 }}>
                       <div className="mono" style={{ width: 34, fontSize: 11, color: C.faint, textAlign: "center" }}>SET</div>
                       <div className="mono" style={{ flex: 1, fontSize: 11, color: C.dim, textAlign: "center", fontWeight: 800 }}>WEIGHT</div>
@@ -794,7 +935,7 @@ function VTaperCoach() {
                     <ol style={{ margin: "10px 0 0", paddingLeft: 22, color: C.dim }}>
                       {formGuide.map((step, stepIdx) => <li key={stepIdx} style={{ fontSize: 14, lineHeight: 1.5, marginBottom: 7, paddingLeft: 3 }}>{step}</li>)}
                     </ol>
-                    {ex.drop && <div style={{ marginTop: 8, fontSize: 13, lineHeight: 1.45, color: C.hot, fontWeight: 700 }}>GREEN days only: 12 reps \u2192 reduce weight \u2192 10 \u2192 reduce \u2192 8. Stop if form changes.</div>}
+                    {ex.drop && <div style={{ marginTop: 8, fontSize: 13, lineHeight: 1.45, color: C.hot, fontWeight: 700 }}>GREEN days only: 12 reps → reduce weight → 10 → reduce → 8. Stop if form changes.</div>}
                     {ex.yt && (
                       <a href={`https://www.youtube.com/watch?v=${ex.yt}`} target="_blank" rel="noreferrer"
                         style={{ display: "inline-flex", alignItems: "center", minHeight: 48, marginTop: 8, color: C.ice, fontSize: 14, fontWeight: 800, textDecoration: "none" }}>
@@ -829,22 +970,41 @@ function VTaperCoach() {
           <BodyLogger onSave={addBody} last={lastBody} today={state.body.find((b) => b.d === tk)} />
 
           <SectionTitle>SESSION HISTORY</SectionTitle>
-          {Object.keys(state.logs).sort().reverse().slice(0, 14).map((k) => {
+          {logKeys.filter((k) => countDone(state.logs[k]) > 0).sort().reverse().slice(0, 20).map((k) => {
             const l = state.logs[k];
             const p = PROGRAM[l.day];
-            const n = dayDone(k);
-            if (!n) return null;
+            const n = countDone(l);
+            const shown = openHist === k;
             return (
-              <div key={k} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: "12px 14px", marginBottom: 8 }}>
-                <div>
-                  <div style={{ fontSize: 14, fontWeight: 700 }}>{p.title}</div>
-                  <div className="mono" style={{ fontSize: 11, color: C.faint }}>{k}</div>
-                </div>
-                <div className="mono" style={{ fontSize: 13, color: C.green, fontWeight: 600 }}>{n} sets</div>
+              <div key={k} data-testid={`history-${k}`} style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, marginBottom: 8, overflow: "hidden" }}>
+                <button onClick={() => setOpenHist(shown ? null : k)} aria-expanded={shown}
+                  style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%", textAlign: "left", background: "transparent", border: "none", color: C.text, padding: "12px 14px" }}>
+                  <div>
+                    <div style={{ fontSize: 14, fontWeight: 700 }}>{p.title}</div>
+                    <div className="mono" style={{ fontSize: 11, color: C.faint }}>{niceDay(logDate(k))} · {logDate(k)}</div>
+                  </div>
+                  <div className="mono" style={{ fontSize: 13, color: C.green, fontWeight: 600 }}>{n} sets {shown ? "▴" : "▾"}</div>
+                </button>
+                {shown && (
+                  <div style={{ borderTop: `1px solid ${C.border}`, background: C.surface, padding: "10px 14px 12px" }}>
+                    {p.ex.map((ex, i) => {
+                      const sets = ((l.ex && l.ex[i]) || []).filter((s) => s && (s.w || s.r));
+                      if (!sets.length) return null;
+                      return (
+                        <div key={i} style={{ marginBottom: 8 }}>
+                          <div style={{ fontSize: 13, fontWeight: 700 }}>{ex.name}</div>
+                          <div className="mono" style={{ fontSize: 12.5, color: C.dim, marginTop: 2, lineHeight: 1.5 }}>
+                            {sets.map((s) => (s.w ? `${s.w} kg × ${s.r || "?"}` : `${s.r} reps`)).join("  ·  ")}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             );
           })}
-          {Object.keys(state.logs).length === 0 && (
+          {trainedDates.size === 0 && (
             <div style={{ color: C.faint, fontSize: 13, padding: "8px 2px" }}>No sessions logged yet. Hit TRAIN and check off your first set.</div>
           )}
         </div>
@@ -852,26 +1012,9 @@ function VTaperCoach() {
 
       {tab === "plan" && (
         <div className="screen-pad" style={{ paddingTop: 18, paddingBottom: 18 }}>
-          <SectionTitle>THE SPLIT — 4-EXPERT CONSENSUS v2.0</SectionTitle>
-          {[1, 2, 3, 4, 5, 6, 7].map((d) => {
-            const p = PROGRAM[d];
-            return (
-              <button key={d} onClick={() => { setSelDay(d); setTab("train"); }}
-                style={{
-                  display: "flex", alignItems: "center", gap: 12, width: "100%", textAlign: "left",
-                  background: d === todayNum ? `linear-gradient(90deg, ${C.card}, ${p.color}12)` : C.card,
-                  border: `1px solid ${p.priority ? C.amber + "77" : C.border}`,
-                  borderRadius: 12, padding: "13px 14px", marginBottom: 8, color: C.text,
-                }}>
-                <div className="mono" style={{ width: 36, fontSize: 12, fontWeight: 700, color: d === todayNum ? C.amber : C.faint }}>{DAY_NAMES[d]}</div>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 14, fontWeight: 700 }}>{p.title}{p.priority ? " \u2b50" : ""}</div>
-                  <div style={{ fontSize: 11.5, color: C.faint }}>{p.sub}</div>
-                </div>
-                {!p.rest && <div className="mono" style={{ fontSize: 11, color: C.dim }}>{p.ex.reduce((a, e) => a + effSets(e), 0)} sets</div>}
-              </button>
-            );
-          })}
+          <SectionTitle>THE FIVE WORKOUTS — 4-EXPERT CONSENSUS v2.0</SectionTitle>
+          {WORKOUTS.map(workoutRow)}
+          <Rule t="Any workout, any day" d="Pick whichever session is open. Aim for all five each week and no more than three training days in a row. Rest days are walk + sauna." />
 
           <SectionTitle>PHASES</SectionTitle>
           <Rule t="Weeks 1\u20134 \u00b7 Foundation" d="Use today's Garmin prescription. On GREEN, cap work at RPE 7\u20138 and keep 2\u20133 reps in reserve." />
@@ -1051,7 +1194,7 @@ function GarminCard({ garmin, tk, checkin, onCheckin, onCollect, collecting, syn
           </div>
         ) : <div style={{ color: C.dim, fontSize: 13, marginTop: 8 }}>Run the Garmin sync or train conservatively.</div>}
         {garmin && garmin.weight_kg != null && !stale && (
-          <div className="mono" style={{ fontSize: 11, color: C.green, marginTop: 9, fontWeight: 800 }}>\u2713 SCALE WEIGHT {garmin.weight_kg}KG AUTO-LOGGED</div>
+          <div className="mono" style={{ fontSize: 11, color: C.green, marginTop: 9, fontWeight: 800 }}>✓ SCALE WEIGHT {garmin.weight_kg}KG AUTO-LOGGED</div>
         )}
       </div>
 
@@ -1295,6 +1438,13 @@ ReactDOM.createRoot(document.getElementById("root")).render(<VTaperCoach />);
 <script>
   if ("serviceWorker" in navigator) {
     window.addEventListener("load", () => {
+      const hadController = !!navigator.serviceWorker.controller;
+      let reloaded = false;
+      navigator.serviceWorker.addEventListener("controllerchange", () => {
+        if (!hadController || reloaded) return;
+        reloaded = true;
+        window.location.reload();
+      });
       navigator.serviceWorker.register("sw.js").catch(() => {});
     });
   }
