@@ -61,6 +61,15 @@ minutes. Do not commit the token or paste it into `index.html`.
 - Photos are never committed to GitHub, written to `garmin.json`, or uploaded by the app.
 - Removing site data or uninstalling the PWA can delete the private copies, so keep originals in Samsung Gallery or Secure Folder.
 
+## Choosing a workout
+- The five workouts (Push, Pull, Legs + Core, Shoulder Cap + Back, Arms + Delt Blast) are no
+  longer tied to weekdays. Pick any of them on any day from **Today** or the **Train** tab.
+- Each one shows whether it is done, partly done or still open this week (Monday to Sunday).
+  "Next up" is the workout you have gone longest without.
+- Every exercise shows the weights and reps from the last time you did that workout, with a
+  note on whether to stay or go up. Tap a session under **Progress -> Session History** to see
+  its full weights.
+
 Readiness logic:
 - GREEN: full session as programmed
 - AMBER: drop a set from non-priority lifts, keep all lateral volume
