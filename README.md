@@ -70,6 +70,18 @@ minutes. Do not commit the token or paste it into `index.html`.
   note on whether to stay or go up. Tap a session under **Progress -> Session History** to see
   its full weights.
 
+## Online save
+- **Plan -> Online save**: choose a passcode (8+ characters) and tap **Turn on online save**.
+  Sessions, weights, habits and weigh-ins are then saved online after every change.
+- On a new phone, install the app and turn on online save with the same passcode: the history
+  is restored and joined with anything already on that phone.
+- The data lives in the Supabase project `vtaper-coach` (not in this repo). It can only be read
+  or written with the passcode; five wrong passcodes lock it for 15 minutes. The last saved
+  state of each day is kept for 60 days as a safety net.
+- Photos are not saved online; they stay on the phone.
+- `online-save/setup.sql` is the one-time database setup. `.github/workflows/online-save-keepalive.yml`
+  pings the store every two days so the free-tier project is not paused for inactivity.
+
 Readiness logic:
 - GREEN: full session as programmed
 - AMBER: drop a set from non-priority lifts, keep all lateral volume
