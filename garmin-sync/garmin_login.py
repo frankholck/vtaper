@@ -18,6 +18,12 @@ import subprocess
 import sys
 from pathlib import Path
 
+if sys.version_info < (3, 12):
+    sys.exit(
+        f"This needs Python 3.12 or newer (you have {sys.version.split()[0]}).\n"
+        "Install it with:  winget install Python.Python.3.12   then open a new PowerShell window."
+    )
+
 try:
     from garminconnect import Garmin
 except ImportError:

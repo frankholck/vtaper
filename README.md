@@ -17,7 +17,9 @@ Open the URL in Chrome -> menu -> "Add to Home screen" -> Install.
 Garmin blocks password logins from GitHub's servers, so the sync signs in with a
 saved Garmin session instead of the password.
 
-1. One-time login on your own computer (PowerShell on Windows):
+1. One-time login on your own computer (PowerShell on Windows, Python 3.12+;
+   if `python` is not found: `winget install Python.Python.3.12`, then open a
+   new PowerShell window):
 
        curl.exe -sO https://raw.githubusercontent.com/frankholck/vtaper/main/garmin-sync/garmin_login.py
        python -m pip install -U garminconnect
