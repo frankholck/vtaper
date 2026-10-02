@@ -1,0 +1,22 @@
+name: Online save keep-alive
+
+# The online store runs on a free-tier Supabase project, which is paused after a week
+# without requests. This ping keeps it awake while the app is not being used.
+on:
+  schedule:
+    - cron: "23 3 */2 * *"
+  workflow_dispatch: {}
+
+permissions: {}
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping the online store
+        run: |
+          curl --fail --silent --show-error --max-time 30 \
+            -X POST "https://jplppqjjfcpzakbjiuhh.supabase.co/rest/v1/rpc/vtaper_ping" \
+            -H "apikey: sb_publishable_AwlEsmU1bahjALv5-Nhy5g_zkU0-JMi" \
+            -H "Content-Type: application/json" \
+            -d '{}'

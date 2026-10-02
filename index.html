@@ -46,10 +46,48 @@
 const { useState, useEffect, useRef, useMemo } = React;
 const GARMIN_RELAY_URL = "https://vtaper-garmin-relay.frankholck.workers.dev/sync";
 
+/* Online save: a private store that only answers to the passcode chosen in the app.
+   The key below is a publishable key and is meant to be public; it grants nothing without the passcode. */
+const CLOUD_URL = "https://jplppqjjfcpzakbjiuhh.supabase.co/rest/v1/rpc/";
+const CLOUD_KEY = "sb_publishable_AwlEsmU1bahjALv5-Nhy5g_zkU0-JMi";
+
 /* localStorage adapter */
 const storage = {
   get: async (k) => { const v = localStorage.getItem(k); return v !== null ? { value: v } : null; },
   set: async (k, v) => localStorage.setItem(k, v),
+};
+
+const cloudCfg = {
+  get: () => { try { return JSON.parse(localStorage.getItem("vtaper-cloud") || "null"); } catch (e) { return null; } },
+  set: (v) => { try { v ? localStorage.setItem("vtaper-cloud", JSON.stringify(v)) : localStorage.removeItem("vtaper-cloud"); } catch (e) {} },
+};
+const CLOUD_ERRORS = {
+  bad_passcode: "Wrong passcode.",
+  locked: "Too many wrong passcodes. Try again in 15 minutes.",
+  short: "Use a passcode of at least 8 characters.",
+  not_set_up: "Online save was reset. Turn it off and on again on this phone.",
+  bad_data: "The online store refused this save.",
+  network: "No connection to the online store. Everything is still saved on this phone and goes online when the connection is back.",
+};
+const cloudMessage = (e) => CLOUD_ERRORS[e && e.code] || CLOUD_ERRORS.network;
+const cloudFail = (code) => { const e = new Error(code); e.code = code; return e; };
+async function cloudCall(fn, body, keepalive) {
+  let res;
+  try {
+    res = await fetch(CLOUD_URL + fn, {
+      method: "POST", keepalive: !!keepalive,
+      headers: { "Content-Type": "application/json", apikey: CLOUD_KEY },
+      body: JSON.stringify(body),
+    });
+  } catch (e) { throw cloudFail("network"); }
+  if (!res.ok) throw cloudFail("network");
+  return res.json();
+}
+const deepEqual = (a, b) => {
+  if (a === b) return true;
+  if (!a || !b || typeof a !== "object" || typeof b !== "object" || Array.isArray(a) !== Array.isArray(b)) return false;
+  const ka = Object.keys(a), kb = Object.keys(b);
+  return ka.length === kb.length && ka.every((k) => Object.prototype.hasOwnProperty.call(b, k) && deepEqual(a[k], b[k]));
 };
 
 /* Body photos live only in this browser profile. They are never sent to GitHub or Garmin. */
@@ -257,6 +295,33 @@ const countDone = (log) => {
   return n;
 };
 
+/* Combine this phone's data with the online copy. Nothing is dropped: sessions, habits, check-ins and
+   weigh-ins are joined by date. Where both sides hold the same session, the one with more completed
+   sets is kept; on a tie, and for settings, the preferred side wins. */
+function mergeStates(remote, local, preferLocal) {
+  if (!remote || typeof remote !== "object" || Array.isArray(remote)) return local;
+  const a = preferLocal ? remote : local, b = preferLocal ? local : remote;
+  const out = { ...a, ...b };
+  const logs = { ...(a.logs || {}) };
+  Object.keys(b.logs || {}).forEach((k) => {
+    if (!logs[k] || countDone(b.logs[k]) >= countDone(logs[k])) logs[k] = b.logs[k];
+  });
+  out.logs = logs;
+  const habits = { ...(a.habits || {}) };
+  Object.keys(b.habits || {}).forEach((d) => { habits[d] = { ...(habits[d] || {}), ...b.habits[d] }; });
+  out.habits = habits;
+  out.checkins = { ...(a.checkins || {}), ...(b.checkins || {}) };
+  const body = {};
+  (a.body || []).forEach((e) => { if (e && e.d) body[e.d] = e; });
+  (b.body || []).forEach((e) => {
+    if (!e || !e.d) return;
+    const o = body[e.d] || {};
+    body[e.d] = { d: e.d, kg: e.kg != null ? e.kg : o.kg != null ? o.kg : null, waist: e.waist != null ? e.waist : o.waist != null ? o.waist : null };
+  });
+  out.body = Object.values(body).sort((x, y) => (x.d < y.d ? -1 : 1));
+  return out;
+}
+
 /* Double progression: fill the rep range at one weight, then move up a step. */
 function nextTarget(ex, sets) {
   const m = /^(\d+)\u2013(\d+)$/.exec(ex.reps);
@@ -343,6 +408,12 @@ function VTaperCoach() {
   const [photoError, setPhotoError] = useState(null);
   const saveT = useRef(null);
   const timerRef = useRef(null);
+  const stateRef = useRef(null);
+  const cloudRef = useRef(cloudCfg.get());
+  const [cloud, setCloud] = useState(cloudRef.current);
+  const [cloudStatus, setCloudStatus] = useState(null);
+  const cloudBusy = useRef(false);
+  const cloudT = useRef(null);
 
   /* Fetch the latest Garmin snapshot on launch and after returning from the manual workflow. */
   const loadGarmin = () => {
@@ -446,11 +517,15 @@ function VTaperCoach() {
         d.setDate(d.getDate() - diff);
         data.startDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
       }
+      stateRef.current = data;
       setState(data);
+      if (cloudRef.current) pullCloud();
     })();
   }, []);
 
-  const persist = (next) => {
+  /* Save on this phone only (no online flag). */
+  const saveLocal = (next) => {
+    stateRef.current = next;
     setState(next);
     if (saveT.current) clearTimeout(saveT.current);
     saveT.current = setTimeout(async () => {
@@ -458,6 +533,124 @@ function VTaperCoach() {
       catch (e) { console.error("save failed", e); }
     }, 400);
   };
+
+  /* Every change made in the app: save on the phone, then queue the online save. */
+  const persist = (next) => {
+    saveLocal(next);
+    if (cloudRef.current) { updateCloud({ dirty: true }); schedulePush(); }
+  };
+
+  const updateCloud = (patch) => {
+    const next = patch === null ? null : { ...(cloudRef.current || {}), ...patch };
+    cloudRef.current = next;
+    cloudCfg.set(next);
+    setCloud(next);
+  };
+  const schedulePush = (ms = 2500) => {
+    clearTimeout(cloudT.current);
+    cloudT.current = setTimeout(() => pushCloud(), ms);
+  };
+
+  const pushCloud = async (keepalive) => {
+    const c = cloudRef.current;
+    if (!c || !c.pass || !stateRef.current || cloudBusy.current) return;
+    cloudBusy.current = true;
+    setCloudStatus({ kind: "saving" });
+    try {
+      for (let attempt = 0; attempt < 4; attempt++) {
+        const local = stateRef.current;
+        const sent = JSON.stringify(local);
+        const base = cloudRef.current && cloudRef.current.rev != null ? cloudRef.current.rev : -1;
+        const res = await cloudCall("vtaper_save", { p_pass: c.pass, p_data: local, p_base_rev: base }, keepalive && sent.length < 60000);
+        if (!cloudRef.current) return;
+        if (res.ok) {
+          const unchanged = JSON.stringify(stateRef.current) === sent;
+          updateCloud({ rev: res.rev, dirty: !unchanged, savedAt: Date.now() });
+          setCloudStatus({ kind: "saved" });
+          if (!unchanged) schedulePush(1000);
+          return;
+        }
+        if (res.error !== "conflict") throw cloudFail(res.error);
+        /* another device saved in between: join both copies, then save again */
+        const merged = mergeStates(res.data, stateRef.current, true);
+        if (!deepEqual(merged, stateRef.current)) saveLocal(merged);
+        updateCloud({ rev: res.rev });
+      }
+      throw cloudFail("network");
+    } catch (e) {
+      setCloudStatus({ kind: "error", text: cloudMessage(e) });
+    } finally {
+      cloudBusy.current = false;
+    }
+  };
+
+  /* On launch and when the app comes back to the front: pick up anything saved from another device. */
+  const pullCloud = async () => {
+    const c = cloudRef.current;
+    if (!c || !c.pass || !stateRef.current || cloudBusy.current) return;
+    cloudBusy.current = true;
+    let needPush = false;
+    try {
+      const res = await cloudCall("vtaper_load", { p_pass: c.pass });
+      if (!cloudRef.current) return;
+      if (!res.ok) throw cloudFail(res.error);
+      if (res.rev !== cloudRef.current.rev) {
+        const merged = mergeStates(res.data, stateRef.current, !!cloudRef.current.dirty);
+        if (!deepEqual(merged, stateRef.current)) saveLocal(merged);
+        updateCloud({ rev: res.rev });
+        if (!deepEqual(merged, res.data)) updateCloud({ dirty: true });
+      }
+      needPush = !!cloudRef.current.dirty;
+      if (!needPush) setCloudStatus({ kind: "saved" });
+    } catch (e) {
+      setCloudStatus({ kind: "error", text: cloudMessage(e) });
+    } finally {
+      cloudBusy.current = false;
+    }
+    if (needPush) pushCloud();
+  };
+
+  /* Turn online save on for this phone. Returns an error message, or null when it worked. */
+  const connectCloud = async (pass) => {
+    if (cloudBusy.current || !stateRef.current) return "Still busy. Try again in a moment.";
+    cloudBusy.current = true;
+    try {
+      const res = await cloudCall("vtaper_load", { p_pass: pass });
+      if (!res.ok) return cloudMessage(cloudFail(res.error));
+      const merged = mergeStates(res.data, stateRef.current, false);
+      if (!deepEqual(merged, stateRef.current)) saveLocal(merged);
+      updateCloud({ pass, rev: res.rev, dirty: true, savedAt: null });
+    } catch (e) {
+      return cloudMessage(e);
+    } finally {
+      cloudBusy.current = false;
+    }
+    await pushCloud();
+    return null;
+  };
+
+  const disconnectCloud = () => {
+    clearTimeout(cloudT.current);
+    updateCloud(null);
+    setCloudStatus(null);
+  };
+
+  useEffect(() => {
+    const onVisibility = () => {
+      if (document.visibilityState === "hidden") {
+        if (cloudRef.current && cloudRef.current.dirty) { clearTimeout(cloudT.current); pushCloud(true); }
+      } else {
+        pullCloud();
+      }
+    };
+    const onOnline = () => { if (cloudRef.current && cloudRef.current.dirty) pushCloud(); };
+    document.addEventListener("visibilitychange", onVisibility);
+    window.addEventListener("online", onOnline);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("online", onOnline);
+    };
+  }, []);
 
   useEffect(() => {
     if (timer === null) return;
@@ -653,6 +846,21 @@ function VTaperCoach() {
   const currentGarmin = garmin && garmin.date === tk ? garmin : null;
   const recovery = readiness(currentGarmin, checkin);
 
+  const savedLabel = (t) => {
+    const d = new Date(t);
+    const hm = `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+    return dateKey(d) === tk ? `TODAY ${hm}` : `${niceDay(dateKey(d)).toUpperCase()} ${hm}`;
+  };
+  const cloudView = !cloud ? null
+    : cloudStatus && cloudStatus.kind === "saving" ? { color: C.dim, short: "SAVING ONLINE…", long: "Saving online…" }
+    : cloudStatus && cloudStatus.kind === "error" ? { color: C.hot, short: "NOT SAVED ONLINE", long: cloudStatus.text }
+    : cloud.dirty ? { color: C.amber, short: "SAVING ONLINE…", long: "Changes are waiting to be saved online." }
+    : { color: C.green, short: "✓ SAVED ONLINE", long: cloud.savedAt ? `✓ Saved online · ${savedLabel(cloud.savedAt)}` : "✓ Saved online" };
+  const goToOnlineSave = () => {
+    setTab("plan");
+    setTimeout(() => { const el = document.getElementById("online-save"); if (el) el.scrollIntoView(); }, 60);
+  };
+
   const trainedToday = Object.keys(todayDone).length > 0;
   const restHint = trainedToday ? null
     : weekCount === WORKOUTS.length ? `All five workouts are done this week. ${REST_NOTE}`
@@ -701,6 +909,9 @@ function VTaperCoach() {
             <div className="mono" style={{ fontSize: 13, fontWeight: 600 }}>
               {GOAL.kg}<span style={{ color: C.faint }}>kg</span> · {GOAL.waist}<span style={{ color: C.faint }}>cm</span>
             </div>
+            {cloud && (
+              <div className="mono" data-testid="cloud-badge" style={{ fontSize: 10, fontWeight: 800, marginTop: 4, color: cloudView.color }}>{cloudView.short}</div>
+            )}
           </div>
         </div>
         <div style={{ display: "flex", gap: 3, marginTop: 10 }}>
@@ -754,6 +965,13 @@ function VTaperCoach() {
           <SectionTitle>CHOOSE YOUR WORKOUT · {weekCount}/{WORKOUTS.length} DONE THIS WEEK</SectionTitle>
           <div style={{ color: C.dim, fontSize: 13, lineHeight: 1.45, margin: "-4px 2px 10px" }}>Any workout, any day. The ones marked open are still owed this week.</div>
           {WORKOUTS.map(workoutRow)}
+
+          {!cloud && (
+            <button data-testid="cloud-prompt" onClick={goToOnlineSave}
+              style={{ width: "100%", textAlign: "left", marginTop: 6, background: `${C.ice}12`, border: `1px solid ${C.ice}66`, borderRadius: 12, padding: "11px 14px", fontSize: 13, lineHeight: 1.5, color: C.text }}>
+              <b style={{ color: C.ice }}>ONLINE SAVE IS OFF.</b> Your history is stored only on this phone. Tap to turn it on.
+            </button>
+          )}
 
           <SectionTitle>NON-NEGOTIABLES</SectionTitle>
           {HABITS.map((h) => {
@@ -1017,16 +1235,21 @@ function VTaperCoach() {
           <Rule t="Any workout, any day" d="Pick whichever session is open. Aim for all five each week and no more than three training days in a row. Rest days are walk + sauna." />
 
           <SectionTitle>PHASES</SectionTitle>
-          <Rule t="Weeks 1\u20134 \u00b7 Foundation" d="Use today's Garmin prescription. On GREEN, cap work at RPE 7\u20138 and keep 2\u20133 reps in reserve." />
-          <Rule t="Weeks 5\u20138 \u00b7 Controlled progression" d="Readiness always overrides the phase. Add lateral-raise volume only on GREEN days; never chase failure." hot />
+          <Rule t="Weeks 1–4 · Foundation" d="Use today's Garmin prescription. On GREEN, cap work at RPE 7–8 and keep 2–3 reps in reserve." />
+          <Rule t="Weeks 5–8 · Controlled progression" d="Readiness always overrides the phase. Add lateral-raise volume only on GREEN days; never chase failure." hot />
 
           <SectionTitle>RULES</SectionTitle>
           <Rule t="3-sec eccentric on ALL lateral raises" d="~45s time-under-tension per set. This is where the caps grow." />
           <Rule t="Cortisol-aware guardrail" d="Garmin cannot measure cortisol. Stress, HRV, sleep and your symptom check-in are conservative proxies; your clinician's advice overrides the app." />
           <Rule t="Morning training" d="Hydrate first. Do not force a hard fasted session or extra caffeine when you feel wired, drained, dizzy or unwell." />
           <Rule t="No flat pressing, no heavy obliques, zero calves" d="Upper chest shelf only. Nothing that thickens the waist. Calves eliminated by consensus." />
-          <Rule t="Macros" d="2000\u20132100 kcal \u00b7 200g protein \u00b7 150\u2013180g carbs \u00b7 55\u201365g fat." />
+          <Rule t="Macros" d="2000–2100 kcal · 200g protein · 150–180g carbs · 55–65g fat." />
           <Rule t="Sleep 7h+" d="Garmin-tracked. Magnesium glycinate before bed." />
+
+          <div id="online-save" style={{ scrollMarginTop: 120 }}>
+            <SectionTitle>ONLINE SAVE</SectionTitle>
+            <CloudCard cloud={cloud} view={cloudView} onConnect={connectCloud} onSave={() => pushCloud()} onOff={disconnectCloud} />
+          </div>
 
           <SectionTitle>SETTINGS</SectionTitle>
           <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: 14 }}>
@@ -1396,6 +1619,62 @@ function PhotoTracker({ photos, onAdd, onRemove, busy, error }) {
           <div className="mono" style={{ color: C.text, fontSize: 12, fontWeight: 800, marginTop: 10 }}>{viewer.view.toUpperCase()} · {niceDate(viewer.date)}</div>
         </div>
       )}
+    </div>
+  );
+}
+
+function CloudCard({ cloud, view, onConnect, onSave, onOff }) {
+  const [pass, setPass] = useState("");
+  const [show, setShow] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState(null);
+  const box = { background: C.card, border: `2px solid ${cloud ? view.color : C.border}`, borderRadius: 14, padding: 14 };
+
+  if (cloud) {
+    return (
+      <div style={box} data-testid="cloud-card">
+        <div data-testid="cloud-status" aria-live="polite" style={{ fontSize: 14, fontWeight: 800, color: view.color, lineHeight: 1.45 }}>{view.long}</div>
+        <div style={{ fontSize: 12.5, color: C.dim, lineHeight: 1.5, marginTop: 6 }}>
+          Sessions, weights, habits and weigh-ins are saved online after every change. On another phone, turn on online save with the same passcode and your history is restored. Photos stay on this phone only.
+        </div>
+        <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+          <button data-testid="cloud-save-now" onClick={onSave}
+            style={{ flex: 1, borderRadius: 10, background: C.surface, color: C.ice, border: `2px solid ${C.border}`, fontWeight: 900, fontSize: 12.5 }}>SAVE NOW</button>
+          <button data-testid="cloud-off" onClick={onOff}
+            style={{ flex: 1, borderRadius: 10, background: C.surface, color: C.dim, border: `2px solid ${C.border}`, fontWeight: 900, fontSize: 12.5 }}>TURN OFF ON THIS PHONE</button>
+        </div>
+      </div>
+    );
+  }
+
+  const submit = async () => {
+    if (busy) return;
+    if (pass.length < 8) { setErr("Use a passcode of at least 8 characters."); return; }
+    setBusy(true);
+    setErr(null);
+    const problem = await onConnect(pass);
+    setBusy(false);
+    if (problem) setErr(problem); else setPass("");
+  };
+
+  return (
+    <div style={box} data-testid="cloud-card">
+      <div style={{ fontSize: 14, fontWeight: 800 }}>Off. Your history is stored only on this phone.</div>
+      <div style={{ fontSize: 12.5, color: C.dim, lineHeight: 1.5, marginTop: 6 }}>
+        First time: choose a passcode of at least 8 characters. On another phone: enter the same passcode to restore your history. Photos stay on the phone.
+      </div>
+      <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+        <input data-testid="cloud-pass" type={show ? "text" : "password"} autoComplete="off" autoCapitalize="off" spellCheck={false} placeholder="passcode" aria-label="Online save passcode"
+          value={pass} onChange={(e) => setPass(e.target.value)} onKeyDown={(e) => e.key === "Enter" && submit()}
+          style={{ ...inp(false), textAlign: "left", padding: "0 12px", fontSize: 16 }} />
+        <button onClick={() => setShow(!show)} aria-pressed={show}
+          style={{ flexShrink: 0, width: 72, borderRadius: 10, background: C.surface, color: C.dim, border: `2px solid ${C.border}`, fontWeight: 800, fontSize: 12 }}>{show ? "HIDE" : "SHOW"}</button>
+      </div>
+      <button data-testid="cloud-on" onClick={submit} disabled={busy}
+        style={{ width: "100%", minHeight: 54, borderRadius: 12, border: "none", marginTop: 10, background: busy ? C.border : C.amber, color: "#111", fontWeight: 900, fontSize: 14 }}>
+        {busy ? "CONNECTING…" : "TURN ON ONLINE SAVE"}
+      </button>
+      {err && <div role="alert" data-testid="cloud-error" style={{ color: C.hot, fontSize: 13, lineHeight: 1.45, marginTop: 9, fontWeight: 700 }}>{err}</div>}
     </div>
   );
 }
