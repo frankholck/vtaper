@@ -1,18 +1,15 @@
 #!/usr/bin/env python3
 """
 Pulls this morning's Garmin stats and writes garmin.json for the V-Taper Coach app.
-Runs in GitHub Actions when requested. Credentials come from repo secrets.
+Runs in GitHub Actions when requested. It signs in with a saved Garmin session
+(see garmin_session.py), not with a password login.
 Every field is fetched defensively — partial data still produces a valid file.
 """
 import json
-import os
 import sys
 from datetime import date, datetime, timezone
 
-from garminconnect import Garmin
-
-EMAIL = os.environ["GARMIN_EMAIL"]
-PASSWORD = os.environ["GARMIN_PASSWORD"]
+import garmin_session
 
 today = date.today().isoformat()
 out = {"date": today, "_synced_at": datetime.now(timezone.utc).isoformat()}
@@ -26,8 +23,7 @@ def safe(fn, *args):
         return None
 
 
-g = Garmin(EMAIL, PASSWORD)
-g.login()
+g, seed = garmin_session.login()
 
 # --- sleep ---
 sleep = safe(g.get_sleep_data, today)
@@ -76,3 +72,5 @@ with open("garmin.json", "w") as f:
     json.dump(out, f, indent=2)
 
 print(f"Wrote garmin.json: {out}")
+
+garmin_session.save(g, seed)

@@ -6,6 +6,12 @@ on:
 permissions:
   contents: write
 
+# One run at a time: two runs refreshing the Garmin session together could
+# invalidate each other's refresh token.
+concurrency:
+  group: garmin-sync
+  cancel-in-progress: false
+
 jobs:
   sync:
     runs-on: ubuntu-latest
@@ -17,10 +23,13 @@ jobs:
           python-version: "3.11"
 
       - name: Install garminconnect
-        run: pip install garminconnect
+        run: pip install "garminconnect>=0.3.17" cryptography
 
       - name: Fetch Garmin data
         env:
+          # Saved Garmin session, created once with garmin-sync/garmin_login.py
+          GARMIN_TOKENS: ${{ secrets.GARMIN_TOKENS }}
+          # Last-resort fallback only; Garmin blocks password logins from GitHub
           GARMIN_EMAIL: ${{ secrets.GARMIN_EMAIL }}
           GARMIN_PASSWORD: ${{ secrets.GARMIN_PASSWORD }}
         run: python garmin-sync/fetch_garmin.py
@@ -30,6 +39,7 @@ jobs:
           git config user.name "garmin-sync"
           git config user.email "actions@github.com"
           git add garmin.json
+          if [ -f garmin-sync/session.enc ]; then git add garmin-sync/session.enc; fi
           git diff --cached --quiet && echo "No change" && exit 0
           git commit -m "Garmin sync $(date -u +%F)"
           git push
