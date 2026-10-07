@@ -1,12 +1,12 @@
 {
-  "date": "2026-10-05",
-  "_synced_at": "2026-10-05T04:09:12.594274+00:00",
-  "sleep_score": 79,
-  "sleep_hours": 6.7,
-  "hrv": 54,
-  "hrv_baseline": 55,
-  "resting_hr": 50,
-  "body_battery": 82,
-  "stress": 16,
-  "weight_kg": 94.3
+  "date": "2026-10-07",
+  "_synced_at": "2026-10-07T03:58:39.743038+00:00",
+  "sleep_score": 83,
+  "sleep_hours": 7.7,
+  "hrv": 39,
+  "hrv_baseline": 50,
+  "resting_hr": 51,
+  "body_battery": 58,
+  "stress": 22,
+  "weight_kg": 94.9
 }
