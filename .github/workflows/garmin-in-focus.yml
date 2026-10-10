@@ -1,0 +1,141 @@
+name: Garmin In Focus email
+
+# Emails the Garmin "In Focus" report three times a day, at 07:30, 14:00 and
+# 22:30 Dubai time (Dubai is GMT+4 all year, so 03:30, 10:00 and 18:30 GMT).
+#
+# GitHub often starts timed runs late. Each run is therefore started 20 minutes
+# early, and the first job waits until just before the send time.
+#
+# To change a send time, change it in BOTH places: the cron line here and the
+# matching line in the "wait" job below.
+on:
+  schedule:
+    - cron: "10 3 * * *"   # 07:30 Dubai
+    - cron: "40 9 * * *"   # 14:00 Dubai
+    - cron: "10 18 * * *"  # 22:30 Dubai
+  # Actions tab -> "Garmin In Focus email" -> Run workflow. Sends straight away.
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  # Kept as its own job so that waiting does not hold the "garmin-sync" lock:
+  # "Collect Garmin now" in the Coach app still works while this one waits.
+  wait:
+    name: Wait for the send time
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Hold until just before the send time
+        env:
+          EVENT: ${{ github.event_name }}
+          TIMER: ${{ github.event.schedule }}
+        run: |
+          if [ "$EVENT" != "schedule" ]; then
+            echo "Started by hand: sending straight away."
+            exit 0
+          fi
+          case "$TIMER" in
+            "10 3 * * *")  target="03:30" ;;
+            "40 9 * * *")  target="10:00" ;;
+            "10 18 * * *") target="18:30" ;;
+            *) echo "No send time is listed for the timer '$TIMER': sending straight away."; exit 0 ;;
+          esac
+          now=$(date -u +%s)
+          goal=$(date -u -d "today $target" +%s)
+          # The next job needs about a minute and a half to set up, pull and send.
+          pause=$(( goal - 90 - now ))
+          if [ "$pause" -le 0 ]; then
+            echo "The send time ($target GMT) is here or has passed: sending straight away."
+          elif [ "$pause" -gt 1500 ]; then
+            echo "More than 25 minutes early, which should not happen: sending straight away."
+          else
+            echo "Waiting $pause seconds, until just before $target GMT."
+            sleep "$pause"
+          fi
+
+  report:
+    name: Pull Garmin data and send the email
+    needs: wait
+    # Still send if the waiting job itself broke (only then a little early).
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # Shared with "Garmin morning sync": two runs refreshing the Garmin session
+    # at the same time could invalidate each other's refresh token.
+    concurrency:
+      group: garmin-sync
+      cancel-in-progress: false
+    steps:
+      # The saved Garmin session lives on main and is saved back to main,
+      # whichever branch this run was started from.
+      - name: Check out main
+        uses: actions/checkout@v5
+        with:
+          ref: main
+
+      # The script itself comes from the branch the run was started from
+      # (main for the timers), so a change can be tried out before merging.
+      - name: Check out the report script
+        uses: actions/checkout@v5
+        with:
+          path: _code
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install the Python packages
+        run: pip install "garminconnect>=0.3.17" cryptography matplotlib
+
+      # Before Garmin is touched: a wrong Gmail password then fails here, and
+      # the failing step shows which side needs fixing.
+      - name: Check the Gmail sign-in
+        env:
+          GMAIL_ADDRESS: ${{ secrets.GMAIL_ADDRESS }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+        run: python _code/garmin-sync/in_focus_report.py --check-mail
+
+      # The repository is public, so this log is public: the script only logs
+      # which sections had data, never a value.
+      - name: Pull Garmin data and send the email
+        timeout-minutes: 10  # leaves time for the save step below
+        env:
+          # Saved Garmin session, created once with garmin-sync/garmin_login.py
+          GARMIN_TOKENS: ${{ secrets.GARMIN_TOKENS }}
+          GARMIN_SESSION_FILE: garmin-sync/session.enc
+          GMAIL_ADDRESS: ${{ secrets.GMAIL_ADDRESS }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+        run: python _code/garmin-sync/in_focus_report.py
+
+      # Runs even if sending failed: Garmin may have issued a new refresh
+      # token during the pull, and losing it would end the saved session.
+      - name: Save the refreshed Garmin session
+        if: always()
+        run: |
+          if [ ! -d .git ] || [ ! -f garmin-sync/session.enc ]; then
+            echo "Nothing to save."
+            exit 0
+          fi
+          git config user.name "garmin-sync"
+          git config user.email "actions@github.com"
+          git add garmin-sync/session.enc
+          if git diff --cached --quiet; then
+            echo "The Garmin session did not change."
+            exit 0
+          fi
+          git commit -m "Garmin session refresh $(date -u +%F)"
+          for attempt in 1 2 3; do
+            if git push origin HEAD:main; then
+              echo "Saved the refreshed Garmin session."
+              exit 0
+            fi
+            echo "main has moved on: fetching it and trying again."
+            if ! git pull --rebase origin main; then
+              git rebase --abort || true
+              break
+            fi
+          done
+          echo "Could not save the refreshed Garmin session." >&2
+          exit 1

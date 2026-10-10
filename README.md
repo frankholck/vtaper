@@ -55,6 +55,44 @@ repository with **Actions: Read and write** and no broader repository access.
 The relay only accepts the Coach website origin and limits repeat starts for two
 minutes. Do not commit the token or paste it into `index.html`.
 
+## 5. Garmin In Focus email
+Three times a day (07:30, 14:00 and 22:30 Dubai time) GitHub pulls the day's Garmin
+numbers and emails them with charts: heart rate, Body Battery, HRV, sleep in detail
+(score, stages, and heart rate / HRV / Pulse Ox / respiration through the night),
+stress, steps and weight. It uses the same saved Garmin session as the morning sync.
+
+1. Create a Gmail app password (needs 2-step verification on the Google account):
+   https://myaccount.google.com/apppasswords
+2. Repo -> Settings -> Secrets and variables -> Actions -> New repository secret:
+   - GMAIL_ADDRESS = the Gmail address (it is both sender and recipient)
+   - GMAIL_APP_PASSWORD = the 16-letter app password (spaces do not matter)
+3. To send one straight away: Actions tab -> "Garmin In Focus email" -> Run workflow.
+
+If an email does not arrive, open the run in the Actions tab and look at which step
+failed:
+- "Check the Gmail sign-in": one of the two Gmail secrets is missing or wrong.
+- "Pull Garmin data and send the email": Garmin did not answer. If the saved Garmin
+  session has ended you get a short email saying so; repeat steps 1-2 of section 3.
+
+Good to know:
+- If last night's sleep has not synced by 07:30, the email says so instead of showing
+  an older night. With no weigh-in today it shows the last one with its date.
+- If nothing at all has synced for today yet (for example the watch is on an earlier
+  date while travelling), the email shows the day before and says so at the top.
+- The repo is public, so the run log is public. The script only logs which sections
+  had data, never a value, and the numbers go nowhere except the email.
+- To change the times, edit `.github/workflows/garmin-in-focus.yml` in both places
+  marked there. GitHub starts timed runs late, so each run starts 20 minutes early
+  and waits.
+- To look at the email without Garmin or Gmail (made-up numbers):
+
+      cd garmin-sync
+      python -m pip install matplotlib
+      python sample_garmin_day.py sample.json
+      python in_focus_report.py --from-file sample.json --out-dir preview
+
+  then open `preview/email.html`. Tests: `python -m unittest test_in_focus_report`.
+
 ## Private visual progress photos
 - Open **Progress -> Visual Progress** to take or choose front, side, and back photos.
 - Photo copies are compressed and saved only in the phone browser's private IndexedDB storage.
