@@ -44,8 +44,9 @@ jobs:
           esac
           now=$(date -u +%s)
           goal=$(date -u -d "today $target" +%s)
-          # The next job needs about a minute and a half to set up, pull and send.
-          pause=$(( goal - 90 - now ))
+          # The next job takes about half a minute to set up, pull and send
+          # (measured on the first run), so hand over 40 seconds before.
+          pause=$(( goal - 40 - now ))
           if [ "$pause" -le 0 ]; then
             echo "The send time ($target GMT) is here or has passed: sending straight away."
           elif [ "$pause" -gt 1500 ]; then
