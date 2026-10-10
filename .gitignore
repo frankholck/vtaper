@@ -1,3 +1,5 @@
 __pycache__/
 *.py[cod]
 .wrangler/
+garmin-sync/preview/
+garmin-sync/sample.json
