@@ -34,6 +34,8 @@ from email.utils import formataddr, formatdate, make_msgid
 from html import escape
 from pathlib import Path
 
+import in_focus_slots
+
 try:
     from zoneinfo import ZoneInfo
 
@@ -43,9 +45,9 @@ except Exception:  # noqa: BLE001 - no time zone files on this machine
     REPORT_TZ = timezone(timedelta(hours=4))
     REPORT_TZ_NAME = "Dubai"
 
-# Send times in REPORT_TZ. Only used to label the email; the timers themselves
-# are in the workflow file.
-SEND_SLOTS = ((7, 30), (14, 0), (22, 30))
+# Send times in Dubai time. Here they only label the email; when a run sends
+# is decided in in_focus_slots.py and the workflow file.
+SEND_SLOTS = tuple(in_focus_slots.SEND_TIMES_DUBAI.values())
 # A run in the first hours after midnight is the evening email arriving late
 # (GitHub can start timed runs very late). It still reports the day that just ended.
 LATE_HOURS = 3
@@ -1193,6 +1195,14 @@ def send(msg, address, password):
         try:
             server.quit()
         except Exception:  # noqa: BLE001
+            pass
+    # Lets the workflow know an email (report or note) really went out, so a
+    # later run for the same send time does not send a second one.
+    marker = os.environ.get("IN_FOCUS_SENT_FILE")
+    if marker:
+        try:
+            Path(marker).write_text("sent\n", encoding="utf-8")
+        except OSError:
             pass
 
 

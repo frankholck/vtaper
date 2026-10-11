@@ -664,6 +664,106 @@ class SessionKeepingTests(unittest.TestCase):
         self.assertEqual(g.tokens["di_refresh_token"], "refresh-seed")
 
 
+class SlotTests(unittest.TestCase):
+    """in_focus_slots.py: what a run does depending on when GitHub starts it."""
+
+    def plan(self, gmt, asked=None):
+        import in_focus_slots
+
+        return in_focus_slots.plan(datetime.fromisoformat(gmt).replace(tzinfo=timezone.utc), asked)
+
+    def test_send_times_are_the_three_dubai_times(self):
+        import in_focus_slots
+
+        self.assertEqual(in_focus_slots.SEND_TIMES_DUBAI, {"0730": (7, 30), "1400": (14, 0), "2230": (22, 30)})
+        self.assertEqual(r.SEND_SLOTS, ((7, 30), (14, 0), (22, 30)))
+
+    def test_a_run_starting_in_the_hour_before_waits_for_the_send_time(self):
+        for gmt, slot, goal in (("2026-10-11T02:27:05", "0730", "2026-10-11T03:30:00"),
+                                ("2026-10-11T03:17:40", "0730", "2026-10-11T03:30:00"),
+                                ("2026-10-11T08:57:00", "1400", "2026-10-11T10:00:00"),
+                                ("2026-10-11T18:29:00", "2230", "2026-10-11T18:30:00")):
+            p = self.plan(gmt)
+            self.assertEqual((p["slot"], p["day"], p["phase"]), (slot, "2026-10-11", "before"), gmt)
+            self.assertEqual(p["goal"], int(datetime.fromisoformat(goal).replace(tzinfo=timezone.utc).timestamp()))
+
+    def test_a_run_starting_at_or_after_the_send_time_is_due(self):
+        for gmt, slot in (("2026-10-11T03:29:30", "0730"), ("2026-10-11T03:30:00", "0730"),
+                          ("2026-10-11T03:49:00", "0730"), ("2026-10-11T05:00:00", "0730"),
+                          ("2026-10-11T10:39:00", "1400"), ("2026-10-11T19:09:00", "2230"),
+                          ("2026-10-11T20:00:00", "2230")):  # 22:30 + 90 min is midnight in Dubai
+            p = self.plan(gmt)
+            self.assertEqual((p["slot"], p["day"], p["phase"]), (slot, "2026-10-11", "due"), gmt)
+
+    def test_a_run_starting_hours_late_does_nothing(self):
+        # 21:35 GMT is 01:35 at night in Dubai: the late run of 10 Oct that sent a second evening email
+        for gmt in ("2026-10-10T21:35:04", "2026-10-11T05:00:01", "2026-10-11T02:24:59", "2026-10-11T12:00:00",
+                    "2026-10-11T20:00:01", "2026-10-11T00:00:00"):
+            self.assertEqual(self.plan(gmt)["phase"], "none", gmt)
+
+    def test_every_timer_in_the_workflow_lands_in_a_window(self):
+        text = (Path(__file__).resolve().parent.parent / ".github" / "workflows" / "garmin-in-focus.yml").read_text()
+        crons = re.findall(r'- cron: "([\d,]+) (\d+) \* \* \*"', text)
+        self.assertEqual(len(crons), 9)
+        seen = {"0730": [], "1400": [], "2230": []}
+        for minutes, hour in crons:
+            for minute in minutes.split(","):
+                p = self.plan(f"2026-10-11T{int(hour):02d}:{int(minute):02d}:00")
+                self.assertNotEqual(p["phase"], "none", (hour, minute))
+                seen[p["slot"]].append(p["phase"])
+        for slot, phases in seen.items():
+            self.assertEqual(phases.count("before"), 6, slot)  # six chances to be on time
+            self.assertEqual(phases.count("due"), 3, slot)     # three chances to be late rather than never
+
+    def test_asking_for_a_send_time_by_hand(self):
+        self.assertEqual(self.plan("2026-10-11T03:50:00", "0730")["phase"], "due")
+        self.assertEqual(self.plan("2026-10-11T03:50:00", "1400")["phase"], "none")  # not near 14:00
+        import in_focus_slots
+
+        self.assertEqual(in_focus_slots.slot_id("07:30"), "0730")
+        self.assertEqual(in_focus_slots.slot_id("2230"), "2230")
+        for other in ("", "now", "08:00", None):
+            self.assertIsNone(in_focus_slots.slot_id(other))
+
+    def test_command_line_prints_what_the_workflow_reads(self):
+        import in_focus_slots
+
+        out, err = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            in_focus_slots.main(["--slot", "", "--now", "2026-10-11T09:07:00Z"])
+        lines = dict(line.split("=", 1) for line in out.getvalue().strip().splitlines())
+        self.assertEqual(lines, {"slot": "1400", "day": "2026-10-11", "phase": "before", "goal": "1791712800"})
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            in_focus_slots.main(["--slot", "tomorrow", "--now", "2026-10-11T09:07:00Z"])
+        self.assertIn("phase=none", out.getvalue())
+
+
+class SentMarkerTests(Base):
+    def test_marker_is_written_only_after_an_email_has_really_gone_out(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            src, marker = Path(tmp) / "sample.json", Path(tmp) / "marker"
+            src.write_text(json.dumps(sample()))
+            with mock.patch.dict(os.environ, {"IN_FOCUS_SENT_FILE": str(marker)}):
+                FakeSMTP.reject_send = True
+                self.run_main("--from-file", str(src))
+                self.assertFalse(marker.exists())
+                FakeSMTP.reject_send = False
+                code, _ = self.run_main("--from-file", str(src))
+                self.assertEqual(code, 0)
+                self.assertTrue(marker.exists())
+
+    def test_marker_is_also_written_when_only_a_note_went_out(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            src, marker = Path(tmp) / "empty.json", Path(tmp) / "marker"
+            src.write_text(json.dumps({"date": DAY.isoformat(), "now": "2026-10-10T10:00:00Z",
+                                       "responses": {name: None for name in r.CALLS}}))
+            with mock.patch.dict(os.environ, {"IN_FOCUS_SENT_FILE": str(marker)}):
+                code, _ = self.run_main("--from-file", str(src))
+            self.assertEqual(code, 1)
+            self.assertTrue(marker.exists())
+
+
 class RealLibraryTests(unittest.TestCase):
     def test_calls_match_the_installed_garminconnect(self):
         try:
