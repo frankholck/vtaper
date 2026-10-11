@@ -5,6 +5,10 @@
   "compatibility_date": "2026-07-11",
   "workers_dev": true,
   "preview_urls": false,
+  // Two minutes before 07:30, 14:00 and 22:30 Dubai time (cron times are GMT).
+  "triggers": {
+    "crons": ["28 3 * * *", "58 9 * * *", "28 18 * * *"]
+  },
   "observability": {
     "enabled": true
   }
