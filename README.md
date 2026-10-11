@@ -81,9 +81,13 @@ Good to know:
   date while travelling), the email shows the day before and says so at the top.
 - The repo is public, so the run log is public. The script only logs which sections
   had data, never a value, and the numbers go nowhere except the email.
-- To change the times, edit `.github/workflows/garmin-in-focus.yml` in both places
-  marked there. GitHub starts timed runs late, so each run starts 20 minutes early
-  and waits.
+- GitHub starts timed runs late, sometimes by hours. So the workflow starts nine runs
+  around each send time: the first to start in the hour before waits and sends on the
+  minute, the others stop. If none starts in time, the first one after the send time
+  sends straight away, at most once and at most 90 minutes late. That is why the
+  Actions tab shows many short "Garmin In Focus email" runs each day.
+- To change the times, edit `SEND_TIMES_DUBAI` in `garmin-sync/in_focus_slots.py` and
+  move the matching cron lines in `.github/workflows/garmin-in-focus.yml`.
 - To look at the email without Garmin or Gmail (made-up numbers):
 
       cd garmin-sync
