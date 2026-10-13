@@ -3,8 +3,9 @@
 Send times for the Garmin In Focus email, and the decision a run makes when
 it starts: which send time is it for, and should it wait, send or stop?
 
-GitHub starts timed runs late, sometimes by hours, and now and then not at
-all. So the workflow starts many runs around each send time instead of one:
+GitHub starts timed runs hours late and skips most of them. So the workflow
+has a timer every ten minutes, all day, and each run decides here what to do
+from the time it actually starts:
 
 - A run that starts up to 65 minutes BEFORE a send time waits for it and
   sends on the minute (the first such run does; the others stop).
@@ -13,8 +14,8 @@ all. So the workflow starts many runs around each send time instead of one:
 - A run that starts at any other time does nothing. In particular a run that
   GitHub starts hours late never sends an email in the middle of the night.
 
-To change the send times, change SEND_TIMES_DUBAI below and the cron lines
-in .github/workflows/garmin-in-focus.yml.
+To change the send times, change SEND_TIMES_DUBAI below (and the send times
+and cron triggers in garmin-relay/ if the Cloudflare relay is in use).
 
     python3 in_focus_slots.py [--slot 07:30]
 

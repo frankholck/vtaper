@@ -3,30 +3,24 @@ name: Garmin In Focus email
 # Emails the Garmin "In Focus" report three times a day, at 07:30, 14:00 and
 # 22:30 Dubai time (Dubai is GMT+4 all year, so 03:30, 10:00 and 18:30 GMT).
 #
-# GitHub starts timed runs late, sometimes by hours, and now and then not at
-# all. So instead of one timer per email there are nine around each send time:
-# six in the hour before and three after. The first run to start before a send
-# time waits for it and sends on the minute; the others see that and stop. A
-# run that only starts after the send time sends straight away, unless that
-# email has already gone out. A run that starts more than 90 minutes late does
-# nothing. The rules live in garmin-sync/in_focus_slots.py.
+# GitHub starts timed runs hours late and skips most of them: of the 27 timers
+# a day this workflow had at first, about nine started, at any time of day.
+# So there is now one every ten minutes, all day, and each run decides for
+# itself what to do from the time it actually starts
+# (garmin-sync/in_focus_slots.py):
+# - up to 65 minutes before a send time: the first such run waits for the send
+#   time and sends on the minute; later ones see that and stop;
+# - up to 90 minutes after a send time: sends straight away, unless that email
+#   has already gone out;
+# - any other time: stops within seconds.
+# The Cloudflare relay (garmin-relay/) can start the same workflow exactly on
+# time; these timers are what is left when it is not set up.
 #
-# To change a send time, change it in garmin-sync/in_focus_slots.py and move
-# the matching three cron lines here (they are in GMT).
+# To change a send time, change it in garmin-sync/in_focus_slots.py (and in
+# garmin-relay/ if the relay is in use). The timer below stays as it is.
 on:
   schedule:
-    # 07:30 Dubai (03:30 GMT)
-    - cron: "27,37,47,57 2 * * *"
-    - cron: "7,17,34,49 3 * * *"
-    - cron: "9 4 * * *"
-    # 14:00 Dubai (10:00 GMT)
-    - cron: "57 8 * * *"
-    - cron: "7,17,27,37,47 9 * * *"
-    - cron: "4,19,39 10 * * *"
-    # 22:30 Dubai (18:30 GMT)
-    - cron: "27,37,47,57 17 * * *"
-    - cron: "7,17,34,49 18 * * *"
-    - cron: "9 19 * * *"
+    - cron: "3-59/10 * * * *"
   # Actions tab -> "Garmin In Focus email" -> Run workflow.
   workflow_dispatch:
     inputs:

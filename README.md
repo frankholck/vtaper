@@ -96,14 +96,17 @@ Good to know:
   date while travelling), the email shows the day before and says so at the top.
 - The repo is public, so the run log is public. The script only logs which sections
   had data, never a value, and the numbers go nowhere except the email.
-- What sends on time is the Cloudflare relay (section 4): it starts the workflow two
-  minutes before each send time. GitHub's own timers are only a backup, because they
-  start hours late or not at all: nine around each send time, of which the first to
-  start in the hour before waits and sends on the minute, and one starting up to 90
-  minutes after still sends. Either way there is at most one email per send time.
+- What sends exactly on time is the Cloudflare relay (section 4), once it is set up:
+  it starts the workflow two minutes before each send time. Without it the emails
+  depend on GitHub's own timers, which start hours late and skip most runs. So there
+  is a timer every ten minutes, all day: the first run to start in the hour before a
+  send time waits and sends on the minute, one starting up to 90 minutes after still
+  sends, and every other run stops within seconds. Either way there is at most one
+  email per send time. That is why the Actions tab shows many short "Garmin In Focus
+  email" runs each day.
 - To change the times, edit `SEND_TIMES_DUBAI` in `garmin-sync/in_focus_slots.py`,
-  move the matching cron lines in `.github/workflows/garmin-in-focus.yml`, and change
-  the send times and cron triggers of the relay (`garmin-relay/`, then put it live).
+  and the send times and cron triggers of the relay if it is in use (`garmin-relay/`,
+  then put it live).
 - To look at the email without Garmin or Gmail (made-up numbers):
 
       cd garmin-sync
