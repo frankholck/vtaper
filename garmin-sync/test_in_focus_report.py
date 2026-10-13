@@ -701,19 +701,19 @@ class SlotTests(unittest.TestCase):
                     "2026-10-11T20:00:01", "2026-10-11T00:00:00"):
             self.assertEqual(self.plan(gmt)["phase"], "none", gmt)
 
-    def test_every_timer_in_the_workflow_lands_in_a_window(self):
+    def test_the_workflow_timer_gives_every_send_time_several_chances(self):
         text = (Path(__file__).resolve().parent.parent / ".github" / "workflows" / "garmin-in-focus.yml").read_text()
-        crons = re.findall(r'- cron: "([\d,]+) (\d+) \* \* \*"', text)
-        self.assertEqual(len(crons), 9)
+        crons = re.findall(r'- cron: "([^"]+)"', text)
+        self.assertEqual(crons, ["3-59/10 * * * *"])  # minutes 3, 13, ... 53 of every hour
         seen = {"0730": [], "1400": [], "2230": []}
-        for minutes, hour in crons:
-            for minute in minutes.split(","):
-                p = self.plan(f"2026-10-11T{int(hour):02d}:{int(minute):02d}:00")
-                self.assertNotEqual(p["phase"], "none", (hour, minute))
-                seen[p["slot"]].append(p["phase"])
+        for hour in range(24):
+            for minute in range(3, 60, 10):
+                p = self.plan(f"2026-10-11T{hour:02d}:{minute:02d}:00")
+                if p["phase"] != "none":
+                    seen[p["slot"]].append(p["phase"])
         for slot, phases in seen.items():
-            self.assertEqual(phases.count("before"), 6, slot)  # six chances to be on time
-            self.assertEqual(phases.count("due"), 3, slot)     # three chances to be late rather than never
+            self.assertGreaterEqual(phases.count("before"), 6, slot)  # chances to be on time
+            self.assertGreaterEqual(phases.count("due"), 8, slot)     # chances to be late rather than never
 
     def test_asking_for_a_send_time_by_hand(self):
         self.assertEqual(self.plan("2026-10-11T03:50:00", "0730")["phase"], "due")
