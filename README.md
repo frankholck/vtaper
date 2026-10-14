@@ -55,6 +55,67 @@ repository with **Actions: Read and write** and no broader repository access.
 The relay only accepts the Coach website origin and limits repeat starts for two
 minutes. Do not commit the token or paste it into `index.html`.
 
+The relay also starts the Garmin In Focus email (section 5) on time. GitHub's own
+timers start hours late or not at all, so three Cloudflare cron triggers start the
+email workflow two minutes before each send time, and the workflow sends on the
+minute. To put a new version of the relay live from the Cloudflare dashboard:
+
+1. https://dash.cloudflare.com -> Workers & Pages -> `vtaper-garmin-relay` -> Edit code.
+2. Replace everything in `index.js` with the contents of
+   https://raw.githubusercontent.com/frankholck/vtaper/main/garmin-relay/src/index.js
+   and press Deploy.
+3. Settings -> Trigger Events -> add three Cron Triggers (times are GMT):
+   `28 3 * * *`, `58 9 * * *` and `28 18 * * *`.
+
+(With Wrangler instead: `cd garmin-relay && npx wrangler deploy`; the triggers are in
+`wrangler.jsonc`.) Tests: `node --test garmin-relay/test/scheduled.test.mjs`.
+
+## 5. Garmin In Focus email
+Three times a day (07:30, 14:00 and 22:30 Dubai time) GitHub pulls the day's Garmin
+numbers and emails them with charts: heart rate, Body Battery, HRV, sleep in detail
+(score, stages, and heart rate / HRV / Pulse Ox / respiration through the night),
+stress, steps and weight. It uses the same saved Garmin session as the morning sync.
+
+1. Create a Gmail app password (needs 2-step verification on the Google account):
+   https://myaccount.google.com/apppasswords
+2. Repo -> Settings -> Secrets and variables -> Actions -> New repository secret:
+   - GMAIL_ADDRESS = the Gmail address (it is both sender and recipient)
+   - GMAIL_APP_PASSWORD = the 16-letter app password (spaces do not matter)
+3. To send one straight away: Actions tab -> "Garmin In Focus email" -> Run workflow.
+
+If an email does not arrive, open the run in the Actions tab and look at which step
+failed:
+- "Check the Gmail sign-in": one of the two Gmail secrets is missing or wrong.
+- "Pull Garmin data and send the email": Garmin did not answer. If the saved Garmin
+  session has ended you get a short email saying so; repeat steps 1-2 of section 3.
+
+Good to know:
+- If last night's sleep has not synced by 07:30, the email says so instead of showing
+  an older night. With no weigh-in today it shows the last one with its date.
+- If nothing at all has synced for today yet (for example the watch is on an earlier
+  date while travelling), the email shows the day before and says so at the top.
+- The repo is public, so the run log is public. The script only logs which sections
+  had data, never a value, and the numbers go nowhere except the email.
+- What sends exactly on time is the Cloudflare relay (section 4), once it is set up:
+  it starts the workflow two minutes before each send time. Without it the emails
+  depend on GitHub's own timers, which start hours late and skip most runs. So there
+  is a timer every ten minutes, all day: the first run to start in the hour before a
+  send time waits and sends on the minute, one starting up to 90 minutes after still
+  sends, and every other run stops within seconds. Either way there is at most one
+  email per send time. That is why the Actions tab shows many short "Garmin In Focus
+  email" runs each day.
+- To change the times, edit `SEND_TIMES_DUBAI` in `garmin-sync/in_focus_slots.py`,
+  and the send times and cron triggers of the relay if it is in use (`garmin-relay/`,
+  then put it live).
+- To look at the email without Garmin or Gmail (made-up numbers):
+
+      cd garmin-sync
+      python -m pip install matplotlib
+      python sample_garmin_day.py sample.json
+      python in_focus_report.py --from-file sample.json --out-dir preview
+
+  then open `preview/email.html`. Tests: `python -m unittest test_in_focus_report`.
+
 ## Private visual progress photos
 - Open **Progress -> Visual Progress** to take or choose front, side, and back photos.
 - Photo copies are compressed and saved only in the phone browser's private IndexedDB storage.

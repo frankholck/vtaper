@@ -75,7 +75,20 @@ def _load_saved(seed):
         return None
 
 
-def _try_tokens(label, tokens):
+def _rotated(g, tokens):
+    """True if Garmin gave this client new tokens after `tokens` were loaded."""
+    try:
+        before, after = json.loads(tokens), json.loads(g.client.dumps())
+    except Exception:  # noqa: BLE001
+        return False
+    return bool(after.get("di_refresh_token")) and (
+        after.get("di_refresh_token") != before.get("di_refresh_token")
+        or after.get("di_token") != before.get("di_token")
+    )
+
+
+def _try_tokens(label, tokens, seed=None):
+    g = None
     try:
         g = Garmin()
         g.login(tokens)
@@ -83,6 +96,15 @@ def _try_tokens(label, tokens):
         return g
     except Exception as e:  # noqa: BLE001 - any failure means try the next source
         _log(f"{label} was not accepted ({type(e).__name__})")
+        # The library refreshes the token first and loads the profile after.
+        # If only the second part failed (a passing Garmin error), Garmin has
+        # already issued a new refresh token. Keep it, or the next run would
+        # start from one that Garmin may no longer accept.
+        try:
+            if g is not None and _rotated(g, tokens):
+                save(g, seed)
+        except Exception:  # noqa: BLE001
+            pass
         return None
 
 
@@ -95,7 +117,7 @@ def login():
     saved = _load_saved(seed)
     for label, tokens in (("saved session", saved), ("GARMIN_TOKENS", seed)):
         if tokens:
-            g = _try_tokens(label, tokens)
+            g = _try_tokens(label, tokens, seed)
             if g:
                 return g, seed
 

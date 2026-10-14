@@ -1,0 +1,249 @@
+name: Garmin In Focus email
+
+# Emails the Garmin "In Focus" report three times a day, at 07:30, 14:00 and
+# 22:30 Dubai time (Dubai is GMT+4 all year, so 03:30, 10:00 and 18:30 GMT).
+#
+# GitHub starts timed runs hours late and skips most of them: of the 27 timers
+# a day this workflow had at first, about nine started, at any time of day.
+# So there is now one every ten minutes, all day, and each run decides for
+# itself what to do from the time it actually starts
+# (garmin-sync/in_focus_slots.py):
+# - up to 65 minutes before a send time: the first such run waits for the send
+#   time and sends on the minute; later ones see that and stop;
+# - up to 90 minutes after a send time: sends straight away, unless that email
+#   has already gone out;
+# - any other time: stops within seconds.
+# The Cloudflare relay (garmin-relay/) can start the same workflow exactly on
+# time; these timers are what is left when it is not set up.
+#
+# To change a send time, change it in garmin-sync/in_focus_slots.py (and in
+# garmin-relay/ if the relay is in use). The timer below stays as it is.
+on:
+  schedule:
+    - cron: "3-59/10 * * * *"
+  # Actions tab -> "Garmin In Focus email" -> Run workflow.
+  workflow_dispatch:
+    inputs:
+      slot:
+        description: "'now' sends straight away. A send time behaves like a timer for it: no second email if that one has already gone out."
+        type: choice
+        default: now
+        options:
+          - now
+          - "07:30"
+          - "14:00"
+          - "22:30"
+
+permissions:
+  contents: write
+
+jobs:
+  # Kept as its own job so that waiting does not hold the "garmin-sync" lock:
+  # "Collect Garmin now" in the Coach app still works while this one waits.
+  wait:
+    name: Wait for the send time
+    runs-on: ubuntu-latest
+    timeout-minutes: 80
+    outputs:
+      slot: ${{ steps.plan.outputs.slot }}
+      day: ${{ steps.plan.outputs.day }}
+      send: ${{ steps.decide.outputs.send }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          sparse-checkout: garmin-sync/in_focus_slots.py
+          sparse-checkout-cone-mode: false
+
+      - name: Work out which send time this run is for
+        id: plan
+        env:
+          EVENT: ${{ github.event_name }}
+          ASKED: ${{ inputs.slot }}
+        run: |
+          if [ "$EVENT" != "schedule" ] && { [ -z "$ASKED" ] || [ "$ASKED" = "now" ]; }; then
+            echo "Started by hand: sending straight away."
+            { echo "slot="; echo "day="; echo "phase=now"; echo "goal=0"; } >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          python3 garmin-sync/in_focus_slots.py --slot "$ASKED" >> "$GITHUB_OUTPUT"
+
+      # Two small markers in the Actions cache tell the runs for one send time
+      # about each other: "sent" (the email has gone out) and "waiting" (a run
+      # is already waiting to send it).
+      - name: Has this email already gone out?
+        id: sent
+        if: steps.plan.outputs.phase == 'before' || steps.plan.outputs.phase == 'due'
+        uses: actions/cache/restore@v5
+        with:
+          path: in-focus-marker
+          key: in-focus-sent-${{ steps.plan.outputs.day }}-${{ steps.plan.outputs.slot }}
+          lookup-only: true
+
+      - name: Is another run already waiting to send it?
+        id: waiting
+        if: steps.plan.outputs.phase == 'before' && steps.sent.outputs.cache-hit != 'true'
+        uses: actions/cache/restore@v5
+        with:
+          path: in-focus-marker
+          key: in-focus-waiting-${{ steps.plan.outputs.day }}-${{ steps.plan.outputs.slot }}
+          lookup-only: true
+
+      - name: Decide what this run does
+        id: decide
+        env:
+          PHASE: ${{ steps.plan.outputs.phase }}
+          SENT: ${{ steps.sent.outputs.cache-hit }}
+          WAITING: ${{ steps.waiting.outputs.cache-hit }}
+        run: |
+          send=no
+          hold=no
+          if [ "$PHASE" = "now" ]; then
+            send=yes
+          elif [ "$PHASE" != "before" ] && [ "$PHASE" != "due" ]; then
+            echo "No send time is near: nothing to do."
+          elif [ "$SENT" = "true" ]; then
+            echo "This email has already gone out: nothing to do."
+          elif [ "$PHASE" = "due" ]; then
+            echo "The send time is here or has just passed: sending straight away."
+            send=yes
+          elif [ "$WAITING" = "true" ]; then
+            echo "Another run is already waiting to send this email: nothing to do."
+          else
+            echo "This run will wait for the send time and send the email."
+            send=yes
+            hold=yes
+            echo "$GITHUB_RUN_ID" > in-focus-marker
+          fi
+          { echo "send=$send"; echo "hold=$hold"; } >> "$GITHUB_OUTPUT"
+
+      - name: Tell later runs that this one is waiting
+        if: steps.decide.outputs.hold == 'yes'
+        uses: actions/cache/save@v5
+        with:
+          path: in-focus-marker
+          key: in-focus-waiting-${{ steps.plan.outputs.day }}-${{ steps.plan.outputs.slot }}
+
+      - name: Hold until just before the send time
+        if: steps.decide.outputs.hold == 'yes'
+        env:
+          GOAL: ${{ steps.plan.outputs.goal }}
+        run: |
+          # The next job takes about half a minute to set up, pull and send,
+          # so hand over 40 seconds before the send time.
+          pause=$(( GOAL - 40 - $(date -u +%s) ))
+          if [ "$pause" -gt 0 ] && [ "$pause" -le 4200 ]; then
+            echo "Waiting $pause seconds."
+            sleep "$pause"
+          fi
+
+  report:
+    name: Pull Garmin data and send the email
+    needs: wait
+    if: ${{ needs.wait.outputs.send == 'yes' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # Shared with "Garmin morning sync": two runs refreshing the Garmin session
+    # at the same time could invalidate each other's refresh token.
+    concurrency:
+      group: garmin-sync
+      cancel-in-progress: false
+    steps:
+      # Checked again here, inside the lock: another run for the same send
+      # time may have sent the email while this one was queued.
+      - name: Has this email already gone out?
+        id: sent
+        if: needs.wait.outputs.slot != ''
+        uses: actions/cache/restore@v5
+        with:
+          path: in-focus-marker
+          key: in-focus-sent-${{ needs.wait.outputs.day }}-${{ needs.wait.outputs.slot }}
+          lookup-only: true
+
+      # The saved Garmin session lives on main and is saved back to main,
+      # whichever branch this run was started from.
+      - name: Check out main
+        if: steps.sent.outputs.cache-hit != 'true'
+        uses: actions/checkout@v5
+        with:
+          ref: main
+
+      # The script itself comes from the branch the run was started from
+      # (main for the timers), so a change can be tried out before merging.
+      - name: Check out the report script
+        if: steps.sent.outputs.cache-hit != 'true'
+        uses: actions/checkout@v5
+        with:
+          path: _code
+
+      - uses: actions/setup-python@v6
+        if: steps.sent.outputs.cache-hit != 'true'
+        with:
+          python-version: "3.12"
+
+      - name: Install the Python packages
+        if: steps.sent.outputs.cache-hit != 'true'
+        run: pip install "garminconnect>=0.3.17" cryptography matplotlib
+
+      # Before Garmin is touched: a wrong Gmail password then fails here, and
+      # the failing step shows which side needs fixing.
+      - name: Check the Gmail sign-in
+        if: steps.sent.outputs.cache-hit != 'true'
+        env:
+          GMAIL_ADDRESS: ${{ secrets.GMAIL_ADDRESS }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+        run: python _code/garmin-sync/in_focus_report.py --check-mail
+
+      # The repository is public, so this log is public: the script only logs
+      # which sections had data, never a value.
+      - name: Pull Garmin data and send the email
+        if: steps.sent.outputs.cache-hit != 'true'
+        timeout-minutes: 10  # leaves time for the steps below
+        env:
+          # Saved Garmin session, created once with garmin-sync/garmin_login.py
+          GARMIN_TOKENS: ${{ secrets.GARMIN_TOKENS }}
+          GARMIN_SESSION_FILE: garmin-sync/session.enc
+          GMAIL_ADDRESS: ${{ secrets.GMAIL_ADDRESS }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          # The script writes this file once an email has really gone out.
+          IN_FOCUS_SENT_FILE: in-focus-marker
+        run: python _code/garmin-sync/in_focus_report.py
+
+      # Also when the step above failed after sending (a short note instead
+      # of the report): one email per send time is enough.
+      - name: Tell later runs that this email has gone out
+        if: always() && needs.wait.outputs.slot != '' && hashFiles('in-focus-marker') != ''
+        uses: actions/cache/save@v5
+        with:
+          path: in-focus-marker
+          key: in-focus-sent-${{ needs.wait.outputs.day }}-${{ needs.wait.outputs.slot }}
+
+      # Runs even if sending failed: Garmin may have issued a new refresh
+      # token during the pull, and losing it would end the saved session.
+      - name: Save the refreshed Garmin session
+        if: always()
+        run: |
+          if [ ! -d .git ] || [ ! -f garmin-sync/session.enc ]; then
+            echo "Nothing to save."
+            exit 0
+          fi
+          git config user.name "garmin-sync"
+          git config user.email "actions@github.com"
+          git add garmin-sync/session.enc
+          if git diff --cached --quiet; then
+            echo "The Garmin session did not change."
+            exit 0
+          fi
+          git commit -m "Garmin session refresh $(date -u +%F)"
+          for attempt in 1 2 3; do
+            if git push origin HEAD:main; then
+              echo "Saved the refreshed Garmin session."
+              exit 0
+            fi
+            echo "main has moved on: fetching it and trying again."
+            if ! git pull --rebase origin main; then
+              git rebase --abort || true
+              break
+            fi
+          done
+          echo "Could not save the refreshed Garmin session." >&2
+          exit 1
