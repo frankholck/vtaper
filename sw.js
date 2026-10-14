@@ -1,4 +1,4 @@
-const CACHE = "vtaper-v8-online-save";
+const CACHE = "vtaper-v9-online-save";
 const CORE = [
   "./",
   "./index.html",

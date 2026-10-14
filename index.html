@@ -195,7 +195,7 @@ const PROGRAM = {
     title: "LEGS + CORE", sub: "Maintenance + Waist Tightening", sets: 17, mins: "50\u201355", color: C.green,
     ex: [
       { name: "Leg Press or Hack Squat", s: 4, reps: "10\u201315", score: 8, tempo: "2s down \u00b7 2s up", yt: "IZxyjW7MPJQ", cue: "Won over squats \u2014 CNS-sparing on a deficit. Press through midfoot, don't lock knees." },
-      { name: "Romanian Deadlift", s: 3, reps: "10\u201312", score: 7, tempo: "3s down \u00b7 2s up", yt: "JCXUYuzwNrM", cue: "Hinge, bar close to legs, flat back. The 3-sec negative builds the hamstrings." },
+      { name: "Back Extension (Hammer Strength)", s: 3, reps: "10\u201312", score: 7, tempo: "3s down \u00b7 1s hold \u00b7 2s up", since: "2026-10-14", was: "Romanian Deadlift", cue: "Replaces the Romanian Deadlift: hamstrings and glutes without a barbell loading the spine. Log the added plate weight, or 0 for bodyweight." },
       { name: "Walking Lunges", s: 3, reps: "12/leg", score: 6, tempo: "steady pace", yt: "L8fvypPrzzs", cue: "Best single exercise for glute activation. Bonus calorie burn." },
       { name: "Hanging Leg Raises", s: 4, reps: "12\u201315", score: 9, tempo: "2s up \u00b7 2s down", yt: "Pr1ieGZ5atk", cue: "Tilt the pelvis FIRST, then curl it up. No swinging \u2014 straps if needed." },
       { name: "Vacuum Practice", s: 3, reps: "30s hold", score: 10, tempo: "exhale \u00b7 draw in \u00b7 hold", yt: "RrSm1skOC7s", cue: "Cinches the waist 1\u20132cm independent of fat loss. On top of the daily 6 sets." },
@@ -244,6 +244,7 @@ const FORM_GUIDES = {
   "Reverse Pec Deck": ["Adjust the seat so handles are level with the shoulders and keep the chest on the pad.", "Move the arms wide by driving from the rear shoulders, not the hands.", "Pause briefly and return without letting the weight stack slam."],
   "Barbell Curl": ["Stand tall with a shoulder-width grip, wrists straight and elbows by the ribs.", "Curl without swinging the torso or pushing elbows forward.", "Squeeze at the top and lower for two seconds to full elbow extension."],
   "Leg Press or Hack Squat": ["Place feet about shoulder width and brace the whole torso against the pad.", "Lower only as far as the pelvis stays neutral and knees track over the toes.", "Press through the midfoot; do not bounce at the bottom or hard-lock the knees."],
+  "Back Extension (Hammer Strength)": ["Set the hip pads so their top edge sits just below the hip crease, and hook the heels under the rollers with the feet flat on the platform.", "Hinge forward from the hips with a long, neutral spine until the hamstrings are well stretched. Take three seconds on the way down.", "Squeeze the glutes to rise until shoulders, hips and heels form one straight line. Hold for a second; never arch past straight. Add plates only once all sets reach 12 clean reps."],
   "Romanian Deadlift": ["Stand tall with a soft knee bend, brace the trunk and keep the weight close to the legs.", "Push the hips back until the hamstrings are strongly loaded while the spine stays neutral.", "Drive the floor away and finish tall without leaning back. Stop if the lower back takes over."],
   "Walking Lunges": ["Take a long, stable step and keep the whole front foot planted.", "Lower straight down while the front knee tracks over the toes.", "Push through the front midfoot to stand; keep the torso controlled rather than rushing."],
   "Hanging Leg Raises": ["Start with shoulders active and stop any swinging before the first rep.", "Exhale and tuck the pelvis first, then curl the knees or straight legs upward.", "Lower slowly without losing the pelvic tuck. Bend the knees if the lower back arches."],
@@ -712,9 +713,10 @@ function VTaperCoach() {
   /* Most recent earlier session of this workout in which this exercise was actually logged. */
   const lastEntry = (d, exIdx) => {
     let best = null;
+    const since = (PROGRAM[d].ex[exIdx] || {}).since;
     logKeys.forEach((k) => {
       const l = state.logs[k], date = logDate(k);
-      if (l.day !== d || date >= tk) return;
+      if (l.day !== d || date >= tk || (since && date < since)) return;
       const sets = (l.ex && l.ex[exIdx]) || [];
       if (!sets.some((s) => s && (s.w || s.r))) return;
       if (!best || date > best.date) best = { date, sets };
@@ -1210,7 +1212,7 @@ function VTaperCoach() {
                       if (!sets.length) return null;
                       return (
                         <div key={i} style={{ marginBottom: 8 }}>
-                          <div style={{ fontSize: 13, fontWeight: 700 }}>{ex.name}</div>
+                          <div style={{ fontSize: 13, fontWeight: 700 }}>{ex.since && logDate(k) < ex.since ? ex.was : ex.name}</div>
                           <div className="mono" style={{ fontSize: 12.5, color: C.dim, marginTop: 2, lineHeight: 1.5 }}>
                             {sets.map((s) => (s.w ? `${s.w} kg × ${s.r || "?"}` : `${s.r} reps`)).join("  ·  ")}
                           </div>
