@@ -1,4 +1,4 @@
-const CACHE = "vtaper-v7-flexible-workouts";
+const CACHE = "vtaper-v8-back-extension";
 const CORE = [
   "./",
   "./index.html",
